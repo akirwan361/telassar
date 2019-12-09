@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Nov  9 01:53:27 2019
-
-@author: katholikosophis
-"""
-
 from astropy.io import fits
 import astropy.units as u
 from numpy import ma
