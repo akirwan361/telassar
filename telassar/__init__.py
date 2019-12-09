@@ -1,4 +1,3 @@
-# namespace up here
 from .data import *
 from .world import *
 from .tools import *
