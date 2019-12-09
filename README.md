@@ -1,10 +1,5 @@
-<<<<<<< HEAD
 TELASSAR : Two dimEnsionaL spectrAl analysiS for muSe And xshooteR
-=======
-TELASSAR : Two dimEnsionaL spectrAl analysiS for muSe And xshooteR
->>>>>>> e156b7b0c7266fb4a9cdc7ebc23f4eb39d891fc0
 -----
-
 
 A clunky, hideous package for doing what I want and upsetting every real programmer in our galactic quadrant. Brute force and ignorance are the tools of my trade. Nothing much beyond visualisation for (pseudo)long-slit spectra, with new functionalities to be added when I figure out how!
 
