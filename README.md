@@ -1,7 +1,7 @@
 Telassar : Two dimEnsionaL spectrAl analysiS for muSe And xshooteR
 -----
 
-"Have the gods of the nations delivered those whom my fathers have destroyed, Gozan and Haran and Rezeph, and the people of Eden who were in Telassar?" - Isaiah 37:12
+*"Have the gods of the nations delivered those whom my fathers have destroyed, Gozan and Haran and Rezeph, and the people of Eden who were in Telassar?" - Isaiah 37:12*
 
 A clunky, hideous package for doing what I want and upsetting every real programmer in our galactic quadrant. Brute force and ignorance are the tools of my trade. Nothing much beyond visualisation for (pseudo)long-slit spectra, with new functionalities to be added when I figure out how!
 
