@@ -23,5 +23,5 @@ $ my_file = PVSlice(data = my_data, header = my_header)
 TODO
 -----
 - Add capability to extract spatial/spectral profiles from the data
-- Add [LMFit](https://lmfit.github.io/lmfit-py/) modeling options for fitting profiles
+- Add [LMFit-py](https://lmfit.github.io/lmfit-py/) modeling options for fitting profiles
 - Learn how to do everything properly.
