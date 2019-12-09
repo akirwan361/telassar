@@ -1,4 +1,8 @@
-TELASSAR  : Two dimEnsionaL spectrAl analysiS for muSe And xshooteR
+<<<<<<< HEAD
+TELASSAR : Two dimEnsionaL spectrAl analysiS for muSe And xshooteR
+=======
+TELASSAR : Two dimEnsionaL spectrAl analysiS for muSe And xshooteR
+>>>>>>> e156b7b0c7266fb4a9cdc7ebc23f4eb39d891fc0
 -----
 
 
