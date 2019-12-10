@@ -15,6 +15,41 @@ class PVSlice(Data2D):
     end up being completely superfluous. We'll find out.
     '''
 
+    def vel_range(self, vmin, vmax=None, unit = None):
+        '''
+        Get a small view of the velocity/wavelength range.
+
+        Parameters
+        -----------
+        vmin : float
+            lower bound; if vmax is None, only a single pixel will be returned
+        vmax : float or None
+            upper bound of the view range
+        unit : `astropy.units.Unit` or None
+            if unit is None, vmin and vmax will be treated as pixels! otherwise,
+            give it a velocity or wavelength value
+
+        Returns
+        --------
+        out : float or PVSlice object
+        '''
+
+        if self.world.spectral_unit is None:
+            raise ValueError("We need coordinates along the spectral direction")
+
+        if vmax is None:
+            vmax = vmin
+
+        if unit is None:
+            pmin = max(0, int(vmin + 0.5))
+            pmax = min(self.shape[1], int(vmax + 0.5))
+
+        else:
+            pmin = max(0, self.world.wav2pix(vmin, nearest=True))
+            pmax = min(self.shape[1], self.world.wav2pix(vmax, nearest = True) + 1)
+
+        return self[:, pmin:pmax]
+
     def plot(self, scale = 'linear', ax = None, ax_kws = None, imshow_kws = None,
              vmin = None, vmax = None, zscale = None):
         '''
