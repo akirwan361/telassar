@@ -3,14 +3,20 @@ from astropy.io import fits
 import numpy as np
 from numpy import ma
 
+import logging
+
 from .world import World
 
 class Data2D:
 
     def __init__(self, filename = None, data = None, mask = False, dtype = None,
-                 ext = None, header = None, unit = None, **kwargs):
+                 ext = None, header = None, unit = None, wcs = None):
 
         #hdul = None
+        logging.basicConfig(level=logging.DEBUG)
+        self._logger = logging.getLogger(__name__)
+        #self._logger.info('yes')
+
         self.filename = filename
         self.ext = ext
         self._data = data
@@ -149,9 +155,88 @@ class Data2D:
         '''
         For pretty printing
         '''
-        fmt = """<{}(shape={}, unit = '{}', dtype = '{}')>"""
+        fmt = """<{}(shape={}, spectral unit = '{}', spatial unit = '{}',
+            dtype = '{}')>"""
         return fmt.format(self.__class__.__name__, self.shape,
-                          self.unit.to_string(), self.dtype)
+                          self.world.spectral_unit.to_string(),
+                          self.world.spatial_unit.to_string(), self._dtype)
+
+    def info(self):
+
+        #log = self._logger.info
+        shape_str = (' x '.join(str(x) for x in self.shape)
+                    if self.shape is not None else 'no shape')
+        #log('%s %s (%s)', shape_str, self.__class__.__name__,
+        #    self.filename or 'no name')
+        print('%s %s (%s)' % (shape_str, self.__class__.__name__,
+            self.filename or 'no name'))
+        data = ('no data' if self._data is None else '.data({})'.format(shape_str))
+        spec_unit = str(self.world.spectral_unit) or 'no unit'
+        spat_unit = str(self.world.spatial_unit) or 'no unit'
+
+        #log('%s (%s %s)', data, spec_unit, spat_unit)
+        print('%s (%s,  %s)' % (data, spat_unit, spec_unit))
+        if self.world is None:
+            log('No world coordinates installed')
+        else:
+            self.world.info()
+
+        #print(log)
+
+
+    def __getitem__(self, item):
+
+        '''
+        Return a sliced object
+        '''
+        data = self._data[item]
+        mask = self._mask
+        if mask is not ma.nomask:
+            mask = mask[item]
+        filename = self.filename
+        reshape = None
+
+        if isinstance(item, (list, tuple)) and len(item) == 2:
+            try:
+                wcs = self.world[item]
+            except Exception:
+                wcs = None
+
+            if isinstance(item[0], int) != isinstance(item[1], int):
+                if isinstance(item[0], int):
+                    reshape = (1, data.shape[0])
+                else:
+                    reshape = (data.shape[0], 1)
+
+        elif isinstance(item, (int, slice)):
+            try:
+                wcs = self.wcs[item, slice(None)]
+            except Exception:
+                wcs = None
+
+            if isinstance(item, int):
+                reshape = (1, data.shape[0])
+
+        elif item is not None or item is ():
+            try:
+                wcs = self.world.copy()
+            except Exception:
+                wcs = None
+
+        if reshape is not None:
+            data = data.reshape(reshape)
+            if mask is not ma.nomask:
+                mask = mask.reshape(reshape)
+
+        return self.__class__(
+            filename = filename, data = data, mask = mask, dtype = self._dtype,
+            ext = self.ext, header = self.header, wcs = wcs)
+
+        '''
+        self, filename = None, data = None, mask = False, dtype = None,
+             ext = None, header = None, unit = None, **kwargs
+        '''
+
 
     def min(self):
         '''
