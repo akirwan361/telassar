@@ -4,6 +4,7 @@ from astropy.wcs import WCS as pywcs
 from astropy.wcs import WCSSUB_SPECTRAL
 import numpy as np
 
+import logging
 
 def wcs_from_cube_header(hdr):
 
@@ -107,6 +108,9 @@ class World:
                  unit1 = u.arcsec, unit2 = u.dimensionless_unscaled,
                  ctype = ['LINEAR', 'AWAV'], shape = None):
 
+        #self._logger = logging.getLogger(__name__)
+        #print(__name__)
+
         unit1 = u.Unit(unit1).to_string('fits')
         unit2 = u.Unit(unit2)
 
@@ -123,7 +127,7 @@ class World:
                 self.wcs = wcs_from_cube_header(h)
             elif n == 2:
                 self.wcs = wcs_from_pv_header(h)
-            print(self.wcs.wcs.cunit)
+
             if self.wcs.wcs.cunit[0] != '':
                 self.spatial_unit = self.wcs.wcs.cunit[0]
             elif self.wcs.wcs.ctype[0] == 'OFFSET':
@@ -172,6 +176,36 @@ class World:
     def __repr__(self):
         return repr(self.wcs)
 
+    def info(self):
+        try:
+            #print('we are workings')
+            #self._logger.info('We are working')
+            spec_unit = self.spectral_unit
+            spat_unit = self.spatial_unit
+            dy = self.get_spatial_step(unit = u.Unit(spat_unit))
+            dx = self.get_spectral_step(unit = u.Unit(spec_unit))
+            sizex = dx * self.naxis2
+            sizey = dy * self.naxis1
+            xc = (self.naxis2 - 1) / 2.
+            yc = (self.naxis1 - 1) / 2.
+            pixoff = self.pix2offset(yc, unit = u.Unit(spat_unit))
+            pixwav = self.pix2wav(xc, unit = u.Unit(spec_unit))
+            '''self._logger.info(
+                'center:(%s, %s) '
+                'size:(%0.3f", %0.3f %s) '
+                'step:(%0.3f", %0.3f %s) ',
+                xc, yc, sizex, sizey, spec_unit.to_string(),
+                dx, dx, spec_unit.to_string())'''
+            print(
+                'center:(%s, %s) \n'
+                'size:(%0.3f", %0.3f %s) \n'
+                'step:(%0.3f", %0.3f %s) ' % (yc, xc,
+                sizey, sizex, spec_unit.to_string(),
+                dy, dx, spec_unit.to_string()))
+        except Exception:
+            print('Exception')
+            self._logger.info("something happened I can't fix yet")
+
     def offset2pix(self, val, nearest = False):
         """
         Return a pixel value if given an offset value in
@@ -186,7 +220,7 @@ class World:
             pix = (pix + 0.5).astype(int)
             np.maximum(pix, 0, out = pix)
             if self.shape is not None:
-                np.minimum(pix, self.shape-1, out = pix)
+                np.minimum(pix, self.shape[0]-1, out = pix)
         return pix[0] if np.isscalar(val) else pix
 
     def wav2pix(self, val, nearest = False):
@@ -203,7 +237,7 @@ class World:
             pix = (pix + 0.5).astype(int)
             np.maximum(pix, 0, out = pix)
             if self.shape is not None:
-                np.minimum(pix, self.shape-1, out=pix)
+                np.minimum(pix, self.shape[1]-1, out=pix)
         return pix[0] if np.isscalar(val) else pix
 
     def pix2offset(self, pix = None, unit = None):
@@ -331,3 +365,62 @@ class World:
             raise IOError("Need a dimension!")
         else:
             return self.pix2wav(self.shape[1]-1)
+
+    def __getitem__(self, item):
+
+        if isinstance(item[0], slice):
+            if item[0].start is None:
+                imin = 0
+            else:
+                imin = int(item[0].start)
+                if imin < 0:
+                    imin = self.naxis1 + imin
+                if imin > self.naxis1:
+                    imin = self.naxis1
+
+            if item[0].stop is None:
+                imax = self.naxis1
+                if imax < 0:
+                    imax = self.naxis1 + imax
+                if imax > self.naxis1:
+                    imax = self.naxis1
+
+            if item[0].step is not None and item[0].step != 1:
+                raise ValueError('Can only handle integer steps')
+        else:
+            imin = int(item[0])
+            imax = int(item[0] + 1)
+
+        if isinstance(item[1], slice):
+            if item[1].start is None:
+                jmin = 0
+            else:
+                jmin = int(item[1].start)
+                if jmin < 0:
+                    jmin = self.naxis2 + jmin
+                if jmin > self.naxis2:
+                    jmin = self.naxis2
+            if item[1].stop is None:
+                jmax = self.naxis2
+                if jmax < 0:
+                    jmax = self.naxis2 + jmax
+                if jmax > self.naxis2:
+                    jmax = self.naxis2
+
+            if item[1].step is not None and item[1].step != 1:
+                raise ValueError('Can only handle integer steps')
+        else:
+            jmin = int(item[1])
+            jmax = int(item[1] + 1)
+
+        # get the new array  indices
+        crpix = (self.wcs.wcs.crpix[0] - imin, self.wcs.wcs.crpix[1] - jmin)
+
+        # copy the object and get the new ref pix and all that
+        res = self.copy()
+        res.wcs.wcs.crpix = np.array(crpix)
+        res.naxis1 = int(imax - imin)
+        res.naxis2 = int(jmax - jmin)
+        res.wcs.wcs.set()
+
+        return res
