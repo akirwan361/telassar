@@ -70,7 +70,8 @@ class Data2D:
                         self._mask = np.array(mask, dtype = bool, copy = True)
 
             self.flux_unit = u.Unit(u.dimensionless_unscaled)
-            self.world = World(hdr = header)
+            if wcs is not None:
+                self.world = wcs
             self.header = self.world.wcs.to_header()
             #self.world = World(self.header)
 
@@ -155,11 +156,12 @@ class Data2D:
         '''
         For pretty printing
         '''
-        fmt = """<{}(shape={}, spectral unit = '{}', spatial unit = '{}',
+        fmt = """<{}(shape={}, spatial unit = '{}', spectral unit = '{}',
             dtype = '{}')>"""
         return fmt.format(self.__class__.__name__, self.shape,
-                          self.world.spectral_unit.to_string(),
-                          self.world.spatial_unit.to_string(), self._dtype)
+                          str(self.world.spatial_unit),
+                          str(self.world.spectral_unit).replace(' ', ''),
+                          self._dtype)
 
     def info(self):
 
@@ -180,9 +182,6 @@ class Data2D:
         else:
             self.world.info()
 
-        #print(log)
-
-
     def __getitem__(self, item):
 
         '''
@@ -198,9 +197,11 @@ class Data2D:
         if isinstance(item, (list, tuple)) and len(item) == 2:
             try:
                 wcs = self.world[item]
+                #print(wcs)
             except Exception:
+                print('No WCS information available')
                 wcs = None
-
+            #print(wcs)
             if isinstance(item[0], int) != isinstance(item[1], int):
                 if isinstance(item[0], int):
                     reshape = (1, data.shape[0])
@@ -208,6 +209,7 @@ class Data2D:
                     reshape = (data.shape[0], 1)
 
         elif isinstance(item, (int, slice)):
+
             try:
                 wcs = self.wcs[item, slice(None)]
             except Exception:
@@ -230,12 +232,6 @@ class Data2D:
         return self.__class__(
             filename = filename, data = data, mask = mask, dtype = self._dtype,
             ext = self.ext, header = self.header, wcs = wcs)
-
-        '''
-        self, filename = None, data = None, mask = False, dtype = None,
-             ext = None, header = None, unit = None, **kwargs
-        '''
-
 
     def min(self):
         '''
