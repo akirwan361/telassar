@@ -146,13 +146,16 @@ class World:
 
             # set the reference pixel
             self.wcs.wcs.crval = np.array([crval[0], crval[1]])
-            self.wcs.wcs.ctype = np.array([ctype[0], ctype[1]])
+            self.wcs.wcs.ctype =[ctype[0], ctype[1]]
             self.wcs.wcs.cdelt = np.array([cdelt[0], cdelt[1]])
             self.wcs.wcs.crpix = np.array([crpix[0], crpix[1]])
+            self.wcs.pixel_shape = shape
+            #self.wcs.wcs.cunit = [unit1, unit2]
 
         #self.wcs.wcs.set()
-        self.shape = self.wcs.pixel_shape
+        self.shape = self.wcs.pixel_shape if shape is None else shape
 
+    @property
     def naxis(self):
         return self.wcs.naxis
 
@@ -361,6 +364,9 @@ class World:
 
     def __getitem__(self, item):
 
+        #if item is None:
+        #    return self
+
         if isinstance(item[0], slice):
             if item[0].start is None:
                 imin = 0
@@ -373,6 +379,8 @@ class World:
 
             if item[0].stop is None:
                 imax = self.naxis1
+            else:
+                imax = int(item[0].stop)
                 if imax < 0:
                     imax = self.naxis1 + imax
                 if imax > self.naxis1:
@@ -383,18 +391,23 @@ class World:
         else:
             imin = int(item[0])
             imax = int(item[0] + 1)
-
+        #print(imin, imax)
         if isinstance(item[1], slice):
+            '''print('item[1] is a slice')
+            print(f'start: {item[1].start} stop: {item[1].stop}')'''
             if item[1].start is None:
                 jmin = 0
             else:
                 jmin = int(item[1].start)
+                #print(jmin)
                 if jmin < 0:
                     jmin = self.naxis2 + jmin
                 if jmin > self.naxis2:
                     jmin = self.naxis2
             if item[1].stop is None:
                 jmax = self.naxis2
+            else:
+                jmax = int(item[1].stop + 1)
                 if jmax < 0:
                     jmax = self.naxis2 + jmax
                 if jmax > self.naxis2:
@@ -405,15 +418,23 @@ class World:
         else:
             jmin = int(item[1])
             jmax = int(item[1] + 1)
-
+        #print(imin, imax)
         # get the new array  indices
-        crpix = (self.wcs.wcs.crpix[0] - imin, self.wcs.wcs.crpix[1] - jmin)
-
+        new_crpix = [1., 1.]#(self.wcs.wcs.crpix[0] - imin, self.wcs.wcs.crpix[1] - jmin)
+        new_spec = self.pix2wav([jmin, jmax])
+        new_spat = self.pix2offset([imin, imax])
+        new_crval = np.array([new_spat[0], new_spec[0]])
+        new_dim = (imax - imin, jmax - jmin)
+        ctype1 = str(self.wcs.wcs.ctype[0])
+        ctype2 = str(self.wcs.wcs.ctype[1])
         # copy the object and get the new ref pix and all that
-        res = self.copy()
+        '''res = self.copy()
         res.wcs.wcs.crpix = np.array(crpix)
         res.naxis1 = int(imax - imin)
         res.naxis2 = int(jmax - jmin)
-        res.wcs.wcs.set()
+        res.wcs.wcs.set()'''
 
-        return res
+        return World(crpix = new_crpix, cdelt = self.wcs.wcs.cdelt, crval = new_crval,
+                     unit1 = u.Unit(self.spatial_unit), unit2 = u.Unit(self.spectral_unit),
+                     ctype = [ctype1, ctype2], shape = new_dim)
+        #return res
