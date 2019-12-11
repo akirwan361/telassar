@@ -13,7 +13,7 @@ class Data2D:
                  ext = None, header = None, unit = None, wcs = None):
 
         #hdul = None
-        logging.basicConfig(level=logging.DEBUG)
+        #logging.basicConfig(level=logging.DEBUG)
         self._logger = logging.getLogger(__name__)
         #self._logger.info('yes')
 
@@ -168,13 +168,12 @@ class Data2D:
                     if self.shape is not None else 'no shape')
         log('%s %s (%s)', shape_str, self.__class__.__name__,
             self.filename or 'no name')
-        #print('%s %s (%s)' % (shape_str, self.__class__.__name__,
-        #    self.filename or 'no name'))
-        data = ('no data' if self._data is None else '.data({})'.format(shape_str))
+
+        data = ('no data' if self._data is None else f'.data({shape_str})')
         spec_unit = str(self.world.spectral_unit) or 'no unit'
         spat_unit = str(self.world.spatial_unit) or 'no unit'
 
-        log('%s (%s %s)', data, spat_unit, spec_unit)
+        log('%s (%s %s)', data, spat_unit, spec_unit.replace(' ', ''))
         #print('%s (%s,  %s)' % (data, spat_unit, spec_unit))
         if self.world is None:
             log('No world coordinates installed')
