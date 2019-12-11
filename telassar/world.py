@@ -179,28 +179,22 @@ class World:
         try:
             #print('we are workings')
             #self._logger.info('We are working')
-            spec_unit = self.spectral_unit
-            spat_unit = self.spatial_unit
-            dy = self.get_spatial_step(unit = u.Unit(spat_unit))
-            dx = self.get_spectral_step(unit = u.Unit(spec_unit))
-            sizex = dx * self.naxis2
-            sizey = dy * self.naxis1
-            xc = (self.naxis2 - 1) / 2.
-            yc = (self.naxis1 - 1) / 2.
-            pixoff = self.pix2offset(yc, unit = u.Unit(spat_unit))
-            pixwav = self.pix2wav(xc, unit = u.Unit(spec_unit))
+            spec_unit = str(self.spectral_unit).replace(' ', '')
+            spat_unit = str(self.spatial_unit).replace(' ', '')
+            dy = self.get_spatial_step(unit = u.Unit(self.spatial_unit))
+            dx = self.get_spectral_step(unit = u.Unit(self.spectral_unit))
+            extentx = np.array([self.get_spectral_start(),
+                                self.get_spectral_end()])
+            extenty = np.array([self.get_spatial_start(),
+                                self.get_spatial_end()])
+
             self._logger.info(
-                'center:(%s, %s) '
-                'size:(%0.3f", %0.3f %s) '
-                'step:(%0.3f", %0.3f %s) ',
-                xc, yc, sizex, sizey, spec_unit.to_string(),
-                dx, dx, spec_unit.to_string())
-            #print(
-            #    'center:(%s, %s) \n'
-            #    'size:(%0.3f", %0.3f %s) \n'
-            #    'step:(%0.3f", %0.3f %s) ' % (yc, xc,
-            #    sizey, sizex, spec_unit.to_string(),
-            #    dy, dx, spec_unit.to_string()))
+                'spatial extent:(%s", %s") step:(%0.3f") ',
+                extenty[0], extenty[1], dy)
+            self._logger.info(
+                'spectral extent:(%0.3f, %0.3f) %s step:(%0.3f %s) ',
+                extentx[0], extentx[1], spec_unit, dx, spec_unit)
+
         except Exception:
             print('Exception')
             self._logger.info("something happened I can't fix yet")
