@@ -108,8 +108,7 @@ class World:
                  unit1 = u.arcsec, unit2 = u.dimensionless_unscaled,
                  ctype = ['LINEAR', 'AWAV'], shape = None):
 
-        #self._logger = logging.getLogger(__name__)
-        #print(__name__)
+        self._logger = logging.getLogger(__name__)
 
         unit1 = u.Unit(unit1).to_string('fits')
         unit2 = u.Unit(unit2)
@@ -190,18 +189,18 @@ class World:
             yc = (self.naxis1 - 1) / 2.
             pixoff = self.pix2offset(yc, unit = u.Unit(spat_unit))
             pixwav = self.pix2wav(xc, unit = u.Unit(spec_unit))
-            '''self._logger.info(
+            self._logger.info(
                 'center:(%s, %s) '
                 'size:(%0.3f", %0.3f %s) '
                 'step:(%0.3f", %0.3f %s) ',
                 xc, yc, sizex, sizey, spec_unit.to_string(),
-                dx, dx, spec_unit.to_string())'''
-            print(
-                'center:(%s, %s) \n'
-                'size:(%0.3f", %0.3f %s) \n'
-                'step:(%0.3f", %0.3f %s) ' % (yc, xc,
-                sizey, sizex, spec_unit.to_string(),
-                dy, dx, spec_unit.to_string()))
+                dx, dx, spec_unit.to_string())
+            #print(
+            #    'center:(%s, %s) \n'
+            #    'size:(%0.3f", %0.3f %s) \n'
+            #    'step:(%0.3f", %0.3f %s) ' % (yc, xc,
+            #    sizey, sizex, spec_unit.to_string(),
+            #    dy, dx, spec_unit.to_string()))
         except Exception:
             print('Exception')
             self._logger.info("something happened I can't fix yet")
