@@ -138,12 +138,12 @@ class Data2D:
 
 
         try:
-            kwargs['world'] = object.world
+            kwargs['wcs'] = object.world
             #kwargs['mode'] = get_mode_from_unit(object.unit)
             #print("I'm in the first try statement") #doctest
         except AttributeError:
             #mode = get_mode_from_unit(unit)
-            kwargs['world'] = World(object.header)#, mode = mode)
+            kwargs['wcs'] = World(object.header)#, mode = mode)
 
         return cls(**kwargs)
 
