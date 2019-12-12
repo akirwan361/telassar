@@ -5,17 +5,29 @@ import matplotlib.pyplot as plt
 class ImPlotter:
 
     def __init__(self, image, data):
+    #def __init__(self, world, data):
         self.image = image
+        #self.world = world
         self.data = data
+
 
     def __call__(self, x, y):
 
+        #import pdb; pbd.set_trace()
         col = int(x + 0.5)
         row = int(y + 0.5)
 
         im = self.image
-        if (im.world) is not None and row >=0 and row < im.shape[0] and \
-                col >= 0 and col < im.shape[1]:
+        #world = self.world
+        xc = im.world.pix2wav(col, unit = im.world.spectral_unit)
+        yc = im.world.pix2offset(row, unit = im.world.spatial_unit)
+        val = self.data[row, col]
+
+        return 'y = %g x = %g p = %i q = %i data = %g' % (yc, xc, row, col, val)
+
+        '''if (im.world is not None and row >=0 and row < im.shape[0] and
+                col >= 0 and col < im.shape[1]):
+            #print(f'{val} is scalar')
 
             xc = im.world.pix2wav(col, unit = im.world.spectral_unit)
             yc = im.world.pix2offset(row, unit = im.world.spatial_unit)
@@ -26,7 +38,7 @@ class ImPlotter:
             else:
                 return 'y = %g x = %g p = %i q = %i data = %s' % (yc, xc, row, col, val)
         else:
-            return 'x = %1.4f, y = %1.4f' % (x, y)
+            return 'x = %1.4f, y = %1.4f' % (x, y)'''
 
 def get_plot_norm(data, vmin = None, vmax = None, zscale = False, scale = 'linear'):
     from astropy import visualization as viz
