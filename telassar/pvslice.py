@@ -167,6 +167,7 @@ class PVSlice(Data2D):
             x_type = ''
         norm = get_plot_norm(data, vmin = vmin, vmax = vmax, zscale = zscale,
                              scale = scale)
+
         extent = get_plot_extent(self.world)
 
         ax.format_coord = ImPlotter(res, data)
@@ -178,16 +179,17 @@ class PVSlice(Data2D):
         #    ax.set_title(title)
         ax.set_xlabel(rf'{x_type} ({spectral_unit})')
         ax.set_ylabel(rf'{y_type} ({spatial_unit})')
-        #ax.margins(0.05)
-        #ax.xaxis.set_minor_locator(AutoMinorLocator())
-        #ax.yaxis.set_minor_locator(AutoMinorLocator())
-        #ax.tick_params(which = 'major', direction = 'inout', length = 9)
-        #ax.tick_params(which = 'minor', direction = 'inout', length = 6)
+        ax.margins(0.05)
+        ax.xaxis.set_minor_locator(AutoMinorLocator())
+        ax.yaxis.set_minor_locator(AutoMinorLocator())
+        ax.tick_params(which = 'major', direction = 'inout', length = 9)
+        ax.tick_params(which = 'minor', direction = 'inout', length = 6)
 
         # format the coordinates
-        #ax.format_coord = ImPlotter(res, data)
+        toggle_unit = True if extent is not None else False
+        ax.format_coord = ImPlotter(res, data, toggle_unit)
 
-        #return cax
+        return cax
 
     def plot_contours(self, sig = None, mask = None, levels1 = None, levels2 = None,
                       cmap1 = None, cmap2 = None, cmap3 = None):

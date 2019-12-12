@@ -72,6 +72,8 @@ class Data2D:
             self.flux_unit = u.Unit(u.dimensionless_unscaled)
             if wcs is not None:
                 self.world = wcs
+            else:
+                self.world = World(self.header)
             self.header = self.world.wcs.to_header()
             #self.world = World(self.header)
 

@@ -4,26 +4,50 @@ import matplotlib.pyplot as plt
 
 class ImPlotter:
 
-    def __init__(self, image, data):
-    #def __init__(self, world, data):
+    def __init__(self, image, data, toggle_unit=False):
         self.image = image
-        #self.world = world
         self.data = data
+        self.toggle_unit = toggle_unit
 
 
     def __call__(self, x, y):
 
-        #import pdb; pbd.set_trace()
-        col = int(x + 0.5)
-        row = int(y + 0.5)
-
         im = self.image
-        #world = self.world
-        xc = im.world.pix2wav(col, unit = im.world.spectral_unit)
-        yc = im.world.pix2offset(row, unit = im.world.spatial_unit)
-        val = self.data[row, col]
 
-        return 'y = %g x = %g p = %i q = %i data = %g' % (yc, xc, row, col, val)
+        # figure out if the image passed pixel units or data units
+        if self.toggle_unit:
+            # get the pixel values
+            col = im.world.wav2pix(x, nearest=True)
+            row = im.world.offset2pix(y, nearest= True)
+            '''xc = x
+            yc = y
+            val = self.data[row, col]
+
+            if np.isscalar(val):
+                return 'y = %g x = %g p = %i q = %i data = %g' % (yc, xc, row, col, val)
+            else:
+                return 'y = %g x = %g p = %i q = %i data = %s' % (yc, xc, row, col, val)'''
+
+        else:
+            col = int(x + 0.5)
+            row = int(y + 0.5)
+
+        if (im.world is not None and row >=0 and row < im.shape[0] and
+                col >= 0 and col < im.shape[1]):
+            #print(f'{val} is scalar')
+
+            xc = im.world.pix2wav(col, unit = im.world.spectral_unit)
+            yc = im.world.pix2offset(row, unit = im.world.spatial_unit)
+            val = self.data[row, col]
+
+            if np.isscalar(val):
+                return 'y = %g x = %g p = %i q = %i data = %g' % (yc, xc, row, col, val)
+            else:
+                return 'y = %g x = %g p = %i q = %i data = %s' % (yc, xc, row, col, val)
+        else:
+            return 'x = %1.4f, y = %1.4f' % (x, y)
+
+        #return 'y = %g x = %g p = %i q = %i data = %g' % (yc, xc, row, col, val)
 
         '''if (im.world is not None and row >=0 and row < im.shape[0] and
                 col >= 0 and col < im.shape[1]):
