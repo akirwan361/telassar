@@ -250,18 +250,42 @@ class PVSlice(Data2D):
 
         extent = get_plot_extent(self.world)
 
+        spectral_unit = u.Unit(self.world.spectral_unit).to_string('latex')
+        spatial_unit = u.Unit(self.world.spatial_unit).to_string('latex')
+        if self.world.wcs.wcs.ctype[0] == 'OFFSET':
+            y_type = rf'Offset'
+        else:
+            y_type = ''
+        if self.world.wcs.wcs.ctype[1] == 'VELO':
+            x_type = r'V$_{rad}$'
+        elif self.world.wcs.wcs.ctype[1] in ['WAVE', 'AWAV']:
+            x_type = r'$\lambda$'
+        else:
+            x_type = ''
+
         fig, ax = plt.subplots(figsize = (4, 9))
         jet1 = ax.contour(data, levels=levels1, cmap=cmap1, extent=extent)
         jet2 = ax.contourf(data, levels=levels1, cmap=cmap2, extent=extent)
         bkgrd = ax.contourf(data, levels=levels2, cmap=cmap3, extent=extent)
 
+        #if 'title' not in ax_kws.items() and emis is not None:
+        #    ax.set_title(rf'{emis}')
+        #    ax.set_title(title)
+        ax.set_xlabel(rf'{x_type} ({spectral_unit})')
+
+        ax.set_ylabel(rf'{y_type} ({spatial_unit})', labelpad = 1)
+        ax.margins(0.05)
         ax.xaxis.set_minor_locator(AutoMinorLocator())
         ax.yaxis.set_minor_locator(AutoMinorLocator())
         ax.tick_params(which = 'major', direction = 'inout', length = 9)
         ax.tick_params(which = 'minor', direction = 'inout', length = 6)
 
+
         # format the coordinates
-        ax.format_coord = ImPlotter(self, data)
+        toggle_unit = True if extent is not None else False
+        ax.format_coord = ImPlotter(self, data, toggle_unit)
+        # make sure the labels aren't clipped?
+        fig.tight_layout()
         return ax
 
     def moments(self, units = False):
