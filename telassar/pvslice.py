@@ -145,10 +145,13 @@ class PVSlice(Data2D):
 
                 #print(emis)
         if ax is None:
-            fig, ax = plt.subplots(subplot_kw = ax_kws)
+            #fig, ax = plt.subplots(subplot_kw = ax_kws)
+            fig, ax = plt.subplots(figsize = (5, 9), **ax_kws)
+            #ax = plt.gca()
             #ax.grid(True)
 
         # set the data and plot parameters
+        res = self.copy()
         data = self.data.copy()
         spectral_unit = u.Unit(self.world.spectral_unit).to_string('latex')
         spatial_unit = u.Unit(self.world.spatial_unit).to_string('latex')
@@ -165,26 +168,28 @@ class PVSlice(Data2D):
         norm = get_plot_norm(data, vmin = vmin, vmax = vmax, zscale = zscale,
                              scale = scale)
         extent = get_plot_extent(self.world)
+
+        ax.format_coord = ImPlotter(res, data)
         cax = ax.imshow(data, interpolation = 'nearest', origin = 'lower', norm =
-                        norm, extent = extent, **imshow_kws)
+                        norm, extent = extent,**imshow_kws) #extent = extent,
 
         if 'title' not in ax_kws.items() and emis is not None:
             ax.set_title(rf'{emis}')
         #    ax.set_title(title)
         ax.set_xlabel(rf'{x_type} ({spectral_unit})')
         ax.set_ylabel(rf'{y_type} ({spatial_unit})')
-        ax.margins(0.05)
-        ax.xaxis.set_minor_locator(AutoMinorLocator())
-        ax.yaxis.set_minor_locator(AutoMinorLocator())
-        ax.tick_params(which = 'major', direction = 'inout', length = 9)
-        ax.tick_params(which = 'minor', direction = 'inout', length = 6)
+        #ax.margins(0.05)
+        #ax.xaxis.set_minor_locator(AutoMinorLocator())
+        #ax.yaxis.set_minor_locator(AutoMinorLocator())
+        #ax.tick_params(which = 'major', direction = 'inout', length = 9)
+        #ax.tick_params(which = 'minor', direction = 'inout', length = 6)
 
         # format the coordinates
-        ax.format_coord = ImPlotter(self, data)
+        #ax.format_coord = ImPlotter(res, data)
 
-        return cax
+        #return cax
 
-    def plot_contours(self, sig = None, levels1 = None, levels2 = None,
+    def plot_contours(self, sig = None, mask = None, levels1 = None, levels2 = None,
                       cmap1 = None, cmap2 = None, cmap3 = None):
         '''
         Generate a contour plot of the data. Useful for jet visualization!
@@ -207,18 +212,24 @@ class PVSlice(Data2D):
         import matplotlib.pyplot as plt
         from matplotlib.ticker import AutoMinorLocator
         from astropy.stats import SigmaClip
-        from photutils import Background2D, MedianBackground
+        from photutils import Background2D, MedianBackground, StdBackgroundRMS
 
+        data = self._data.copy()
         # generate a sigma based on the data?
         if sig is None:
-            sigma_clip = SigmaClip(sigma=3.)
+            sigma_clip = SigmaClip(sigma=3)
+            mask = self.mask if mask is None else mask
             bkg_estimator = MedianBackground()
-            bkg = Background2D(self.data, (50, 50), filter_size = (3,3),
-                              sigma_clip=sigma_clip, bkg_estimator=bkg_estimator)
+            rms_estimator = StdBackgroundRMS()
+            bkg = Background2D(data, (60, 30), filter_size = (3,3),
+                              sigma_clip=sigma_clip, bkg_estimator=bkg_estimator,
+                              bkgrms_estimator = rms_estimator, mask=mask)
+
         sig = sig if sig is not None else bkg.background_rms_median
 
+        sigsqrt2 = sig * np.sqrt(2)
         if levels1 is None:
-            lvls1 = np.array([sig * 2 * np.sqrt(2)**i for i in range(3, 21, 3)])
+            lvls1 = np.array([sig * 2 * np.sqrt(2)**i for i in range(0, 13, 2)])
         if levels2 is None:
             lvls2 = np.linspace(np.log(np.abs(self.min())), 1*sig, 9)
         if cmap1 is None:
@@ -235,11 +246,21 @@ class PVSlice(Data2D):
         levels1 = levels1 if levels1 is not None else lvls1
         levels2 = levels2 if levels2 is not None else lvls2
 
+        extent = get_plot_extent(self.world)
+
         fig, ax = plt.subplots(figsize = (4, 9))
-        jet1 = ax.contour(self.data, levels = levels1, cmap = cmap1)
-        jet2 = ax.contourf(self.data, levels = levels1, cmap = cmap2)
-        bkgrd = ax.contourf(self.data, levels = levels2, cmap = cmap3)
-        return
+        jet1 = ax.contour(data, levels=levels1, cmap=cmap1, extent=extent)
+        jet2 = ax.contourf(data, levels=levels1, cmap=cmap2, extent=extent)
+        bkgrd = ax.contourf(data, levels=levels2, cmap=cmap3, extent=extent)
+
+        ax.xaxis.set_minor_locator(AutoMinorLocator())
+        ax.yaxis.set_minor_locator(AutoMinorLocator())
+        ax.tick_params(which = 'major', direction = 'inout', length = 9)
+        ax.tick_params(which = 'minor', direction = 'inout', length = 6)
+
+        # format the coordinates
+        ax.format_coord = ImPlotter(self, data)
+        return ax
 
     def moments(self, units = False):
         '''
