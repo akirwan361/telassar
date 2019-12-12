@@ -76,16 +76,19 @@ def wcs_from_pv_header(hdr):
     '''
     # Create a WCS object
     mywcs = pywcs(hdr, fix = False)
+    old_pxshape = mywcs.pixel_shape
 
     # Make sure the WCS info is in [spatial, spectral]
     # order
     if mywcs.wcs.cdelt[0] == 0.2:
+        #print(mywcs.pixel_shape)
         pass
     elif mywcs.wcs.cdelt[1] == 0.2:
         mywcs = mywcs.swapaxes(0,1)
         # TODO: figure out why this is different
-        # on laptop and desktop!
-        #mywcs.pixel_shape = mywcs.pixel_shape[::-1]
+        # on laptop and desktop! temp workaround:
+        if mywcs.pixel_shape == old_pxshape:
+            mywcs.pixel_shape = mywcs.pixel_shape[::-1]
 
     # Is this velocity or wavelength?
     if mywcs.wcs.crval[1] < 1:
@@ -179,6 +182,73 @@ class World:
 
     def __repr__(self):
         return repr(self.wcs)
+
+    def __getitem__(self, item):
+        '''
+        Get a bit of the data, mm mmm...
+        '''
+        if isinstance(item[0], slice):
+            if item[0].start is None:
+                imin = 0
+            else:
+                imin = int(item[0].start)
+                if imin < 0:
+                    imin = self.naxis1 + imin
+                if imin > self.naxis1:
+                    imin = self.naxis1
+
+            if item[0].stop is None:
+                imax = self.naxis1
+            else:
+                imax = int(item[0].stop)
+                if imax < 0:
+                    imax = self.naxis1 + imax
+                if imax > self.naxis1:
+                    imax = self.naxis1
+
+            if item[0].step is not None and item[0].step != 1:
+                raise ValueError('Can only handle integer steps')
+        else:
+            imin = int(item[0])
+            imax = int(item[0] + 1)
+        #print(imin, imax)
+        if isinstance(item[1], slice):
+            if item[1].start is None:
+                jmin = 0
+            else:
+                jmin = int(item[1].start)
+                #print(jmin)
+                if jmin < 0:
+                    jmin = self.naxis2 + jmin
+                if jmin > self.naxis2:
+                    jmin = self.naxis2
+            if item[1].stop is None:
+                jmax = self.naxis2
+            else:
+                jmax = int(item[1].stop + 1)
+                if jmax < 0:
+                    jmax = self.naxis2 + jmax
+                if jmax > self.naxis2:
+                    jmax = self.naxis2
+
+            if item[1].step is not None and item[1].step != 1:
+                raise ValueError('Can only handle integer steps')
+        else:
+            jmin = int(item[1])
+            jmax = int(item[1] + 1)
+
+        # get the new array  indices
+        new_crpix = [1., 1.]#(self.wcs.wcs.crpix[0] - imin, self.wcs.wcs.crpix[1] - jmin)
+        new_spec = self.pix2wav([jmin, jmax])
+        new_spat = self.pix2offset([imin, imax])
+        new_crval = np.array([new_spat[0], new_spec[0]])
+        new_dim = (imax - imin, jmax - jmin)
+        ctype1 = str(self.wcs.wcs.ctype[0])
+        ctype2 = str(self.wcs.wcs.ctype[1])
+
+        return World(crpix = new_crpix, cdelt = self.wcs.wcs.cdelt, crval = new_crval,
+                     unit1 = u.Unit(self.spatial_unit), unit2 = u.Unit(self.spectral_unit),
+                     ctype = [ctype1, ctype2], shape = new_dim)
 
     def info(self):
         try:
@@ -363,80 +433,3 @@ class World:
             raise IOError("Need a dimension!")
         else:
             return self.pix2wav(self.shape[1]-1)
-
-    def __getitem__(self, item):
-
-        #if item is None:
-        #    return self
-
-        if isinstance(item[0], slice):
-            if item[0].start is None:
-                imin = 0
-            else:
-                imin = int(item[0].start)
-                if imin < 0:
-                    imin = self.naxis1 + imin
-                if imin > self.naxis1:
-                    imin = self.naxis1
-
-            if item[0].stop is None:
-                imax = self.naxis1
-            else:
-                imax = int(item[0].stop)
-                if imax < 0:
-                    imax = self.naxis1 + imax
-                if imax > self.naxis1:
-                    imax = self.naxis1
-
-            if item[0].step is not None and item[0].step != 1:
-                raise ValueError('Can only handle integer steps')
-        else:
-            imin = int(item[0])
-            imax = int(item[0] + 1)
-        #print(imin, imax)
-        if isinstance(item[1], slice):
-            '''print('item[1] is a slice')
-            print(f'start: {item[1].start} stop: {item[1].stop}')'''
-            if item[1].start is None:
-                jmin = 0
-            else:
-                jmin = int(item[1].start)
-                #print(jmin)
-                if jmin < 0:
-                    jmin = self.naxis2 + jmin
-                if jmin > self.naxis2:
-                    jmin = self.naxis2
-            if item[1].stop is None:
-                jmax = self.naxis2
-            else:
-                jmax = int(item[1].stop + 1)
-                if jmax < 0:
-                    jmax = self.naxis2 + jmax
-                if jmax > self.naxis2:
-                    jmax = self.naxis2
-
-            if item[1].step is not None and item[1].step != 1:
-                raise ValueError('Can only handle integer steps')
-        else:
-            jmin = int(item[1])
-            jmax = int(item[1] + 1)
-        #print(imin, imax)
-        # get the new array  indices
-        new_crpix = [1., 1.]#(self.wcs.wcs.crpix[0] - imin, self.wcs.wcs.crpix[1] - jmin)
-        new_spec = self.pix2wav([jmin, jmax])
-        new_spat = self.pix2offset([imin, imax])
-        new_crval = np.array([new_spat[0], new_spec[0]])
-        new_dim = (imax - imin, jmax - jmin)
-        ctype1 = str(self.wcs.wcs.ctype[0])
-        ctype2 = str(self.wcs.wcs.ctype[1])
-        # copy the object and get the new ref pix and all that
-        '''res = self.copy()
-        res.wcs.wcs.crpix = np.array(crpix)
-        res.naxis1 = int(imax - imin)
-        res.naxis2 = int(jmax - jmin)
-        res.wcs.wcs.set()'''
-
-        return World(crpix = new_crpix, cdelt = self.wcs.wcs.cdelt, crval = new_crval,
-                     unit1 = u.Unit(self.spatial_unit), unit2 = u.Unit(self.spectral_unit),
-                     ctype = [ctype1, ctype2], shape = new_dim)
-        #return res
