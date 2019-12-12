@@ -83,7 +83,9 @@ def wcs_from_pv_header(hdr):
         pass
     elif mywcs.wcs.cdelt[1] == 0.2:
         mywcs = mywcs.swapaxes(0,1)
-        #mywcs.pixel_shape = mywcs.pixel_shape[::-1]
+        # TODO: figure out why this is different
+        # on laptop and desktop!
+        mywcs.pixel_shape = mywcs.pixel_shape[::-1]
 
     # Is this velocity or wavelength?
     if mywcs.wcs.crval[1] < 1:

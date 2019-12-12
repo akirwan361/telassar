@@ -138,9 +138,11 @@ class PVSlice(Data2D):
         if imshow_kws is None:
             imshow_kws = {}
 
+        emis = None
         if emline is not None:
             if emline in lines.keys():
                 emis = lines[emline][2]
+
                 #print(emis)
         if ax is None:
             fig, ax = plt.subplots(subplot_kw = ax_kws)
@@ -183,7 +185,7 @@ class PVSlice(Data2D):
         return cax
 
     def plot_contours(self, sig = None, levels1 = None, levels2 = None,
-                      cmap1 = None, cmap2 = None):
+                      cmap1 = None, cmap2 = None, cmap3 = None):
         '''
         Generate a contour plot of the data. Useful for jet visualization!
 
@@ -213,8 +215,31 @@ class PVSlice(Data2D):
             bkg_estimator = MedianBackground()
             bkg = Background2D(self.data, (50, 50), filter_size = (3,3),
                               sigma_clip=sigma_clip, bkg_estimator=bkg_estimator)
-            sig = bkg.background_rms_median
-        return None
+        sig = sig if sig is not None else bkg.background_rms_median
+
+        if levels1 is None:
+            lvls1 = np.array([sig * 2 * np.sqrt(2)**i for i in range(3, 21, 3)])
+        if levels2 is None:
+            lvls2 = np.linspace(np.log(np.abs(self.min())), 1*sig, 9)
+        if cmap1 is None:
+            cm1 = 'gist_gray'
+        if cmap2 is None:
+            cm2 = 'Oranges'
+        if cmap3 is None:
+            cm3 = 'gray'
+
+        cmap1 = cmap1 if cmap1 is not None else cm1
+        cmap2 = cmap2 if cmap2 is not None else cm2
+        cmap3 = cmap3 if cmap3 is not None else cm3
+
+        levels1 = levels1 if levels1 is not None else lvls1
+        levels2 = levels2 if levels2 is not None else lvls2
+
+        fig, ax = plt.subplots(figsize = (4, 9))
+        jet1 = ax.contour(self.data, levels = levels1, cmap = cmap1)
+        jet2 = ax.contourf(self.data, levels = levels1, cmap = cmap2)
+        bkgrd = ax.contourf(self.data, levels = levels2, cmap = cmap3)
+        return
 
     def moments(self, units = False):
         '''
