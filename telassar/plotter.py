@@ -1,32 +1,53 @@
 import astropy.units as u
 import numpy as np
+from numpy import ma
 import matplotlib.pyplot as plt
+
 
 class ImPlotter:
 
-    def __init__(self, image, data):
+    def __init__(self, image, data, toggle_unit=False):
         self.image = image
         self.data = data
+        self.toggle_unit = toggle_unit
+
 
     def __call__(self, x, y):
 
-        col = int(x + 0.5)
-        row = int(y + 0.5)
-
         im = self.image
-        if (im.world) is not None and row >=0 and row < im.shape[0] and \
-                col >= 0 and col < im.shape[1]:
+
+        # figure out if the image passed pixel units or data units
+        if self.toggle_unit:
+            # get the pixel values
+            col = im.world.wav2pix(x, nearest=True)
+            row = im.world.offset2pix(y, nearest= True)
+            '''xc = x
+            yc = y
+            val = self.data[row, col]
+
+            if np.isscalar(val):
+                return 'y = %g x = %g p = %i q = %i data = %g' % (yc, xc, row, col, val)
+            else:
+                return 'y = %g x = %g p = %i q = %i data = %s' % (yc, xc, row, col, val)'''
+
+        else:
+            col = int(x + 0.5)
+            row = int(y + 0.5)
+
+        if (im.world is not None and row >=0 and row < im.shape[0] and
+                col >= 0 and col < im.shape[1]):
+            #print(f'{val} is scalar')
 
             xc = im.world.pix2wav(col, unit = im.world.spectral_unit)
             yc = im.world.pix2offset(row, unit = im.world.spatial_unit)
             val = self.data[row, col]
 
             if np.isscalar(val):
-                return 'y = %g x = %g p = %i q = %i data = %g' % (yc, xc, row, col, val)
+                return 'y=%g x=%g p=%i q=%i data=%g' % (yc, xc, row, col, val)
             else:
-                return 'y = %g x = %g p = %i q = %i data = %s' % (yc, xc, row, col, val)
+                return 'y=%g x=%g p=%i q=%i data=%s' % (yc, xc, row, col, val)
         else:
-            return 'x = %1.4f, y = %1.4f' % (x, y)
+            return 'x=%1.4f, y=%1.4f' % (x, y)
 
 def get_plot_norm(data, vmin = None, vmax = None, zscale = False, scale = 'linear'):
     from astropy import visualization as viz
@@ -62,3 +83,93 @@ def get_plot_extent(wcs_obj):
     ymax = wcs_obj.get_spatial_end()+0.5
 
     return xmin, xmax, ymin, ymax
+
+def get_background_rms(data, sigma = 3, N = 10, mask = None):
+    '''
+    Get the background rms/sigma value of the data. We consider a
+    3sigma value as the detection limit, so it is useful to scale
+    contour plots using this value to emphasize source detections.
+
+    Parameters
+    ----------
+    data : `np.ndarray` or `np.ma.MaskedArray`
+        the data to be plotted
+    sigma : int
+        the sigma value sent to `SigmaClip`. data above or below sigma stddevs
+        will be ignored in computing the background RMS; default is 3.
+    N : int
+        the number of sampling boxes to fit in the data. Default is 10. if the
+        box sizes are a non-integer value, then the `edge_method` keywork used
+        in `Background2D` is set to "pad"
+    mask : `np.ma.MaskedArray` or None
+        if no mask is specified,
+
+    '''
+
+    from astropy.stats import SigmaClip
+    from photutils import Background2D, MedianBackground, StdBackgroundRMS
+
+    # get a boxsize. sides must be integer values, so if there's a
+    # remainder then set an edge_method keyword
+    ny, nx = data.shape
+    sy = ny // N
+    sx = nx // N
+
+    if (ny % N != 0) or (nx % N != 0):
+        edge_method = 'pad'
+    else:
+        edge_method = None
+
+    # is there a mask?
+    if mask is None:
+        try:
+            mask = data.mask
+        except Exception:
+            mask = ~(np.isfinite(data))
+    else:
+        mask = mask
+    #mask = data.mask if mask is None else mask
+
+    # do we need to unmask the data?
+    # TODO: why does data[~data.mask] compress data to 1D?
+    # reshape if necessary I guess
+    try:
+        ndata = data[~data.mask]
+        #print(ndata.shape)
+        if ndata.shape != data.shape:
+            ndata = ndata.reshape(data.shape)
+        #print(ndata.shape)
+    except Exception as e:
+        print(e)
+        ndata = ma.getdata(data)
+
+    # get the background RMS. This calls `photutils.Background2D`
+    sigma_clip = SigmaClip(sigma=sigma)
+    bkg_estimator = MedianBackground()
+    rms_estimator = StdBackgroundRMS()
+    bkg = Background2D(ndata, (sy, sx), filter_size = (3,3), sigma_clip = sigma_clip,
+                    bkg_estimator = bkg_estimator, bkgrms_estimator = rms_estimator,
+                    mask = mask, edge_method = edge_method)
+
+    sigrms = bkg.background_rms_median
+
+    return sigrms
+
+def get_contour_levels(data, sigma):
+    '''
+    Generate contour levels?
+    '''
+
+    dmax = data.max()
+    dmin = data.min()
+
+    # from practice, the most reliable levels are from a sqrt(2) log scale.
+    # testing various levels, I've found the following to be a good basis:
+    #       lvls = np.array([sigma * 2 * sqrt(2)**i for i in range(0,x,N)])
+    # for now just leave the values here I guess, since if the range above isn't
+    # chosen carefully the final level value can be less than data.max()
+    scale = np.array([0.01697583, 0.03395166, 0.06790333, 0.13580666,
+                      0.27161332, 0.54322664, 1.08645327])
+    lvls1 = dmax * scale
+    lvls2 = np.linspace(dmin, 0.8 * sigma, 9)
+    return lvls1, lvls2

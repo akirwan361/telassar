@@ -1,20 +1,30 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Nov  9 01:53:27 2019
-
-@author: katholikosophis
-"""
-
 from astropy.io import fits
 import astropy.units as u
 from numpy import ma
 import numpy as np
 from lmfit import models
+import matplotlib.pyplot as plt
+from matplotlib.ticker import AutoMinorLocator
 
 from .data import Data2D
 from .world import World
-from .plotter import ImPlotter, get_plot_norm, get_plot_extent
+from .plotter import (ImPlotter, get_plot_norm, get_plot_extent,
+                      get_background_rms, get_contour_levels)
+
+# a running line list
+
+lines = {
+        'OI6300':   [6300.304, 'Angstrom', r'$[\mathrm{OI}]\lambda 6300\AA$'],
+        'OI6363':   [6363.777, 'Angstrom', r'$[\mathrm{OI}]\lambda 6363\AA$'],
+        'NII6548':  [6548.04, 'Angstrom', r'$[\mathrm{NII}]\lambda 6548\AA$'],
+        'NII6583':  [6583.46,  'Angstrom', r'$[\mathrm{NII}]\lambda 6583\AA$'],
+        'HAlpha':   [6562.8,  'Angstrom', r'$\mathrm{H}\alpha$'],
+        'HBeta':    [4861.325,  'Angstrom', r'$\mathrm{H}\beta$'],
+        'SII6716':  [6716.44,  'Angstrom', r'$[\mathrm{SII}]\lambda 6716\AA$'],
+        'SII6731':  [6730.81,  'Angstrom', r'$[\mathrm{SII}]\lambda 6730\AA$'],
+        'CaII7291': [7291.47, 'Angstrom', r'$[\mathrm{CaII}]\lambda 7291\AA$'],
+        'CaII7324': [7323.89, 'Angstrom', r'$[\mathrm{CaII}]\lambda 7324\AA$']
+}
 
 class PVSlice(Data2D):
 
@@ -23,41 +33,126 @@ class PVSlice(Data2D):
     end up being completely superfluous. We'll find out.
     '''
 
-    def plot(self, scale = 'linear', ax = None, ax_kws = None, imshow_kws = None,
-             vmin = None, vmax = None, zscale = None):
+    def spectral_window(self, vmin, vmax=None, unit = None):
         '''
-        This function generates an interactive plot of the desired data,
-        which allows the user to click points on the graph and populate
-        a `coords` list. This list is accessible everywhere else in this
-        script, which may then be sent to the model generator for the
-        curve fitting.
+        Get a small view of the velocity/wavelength range.
+
+        Parameters
+        -----------
+        vmin : float
+            lower bound; if vmax is None, only a single pixel will be returned
+        vmax : float or None
+            upper bound of the view range
+        unit : `astropy.units.Unit` or None
+            if unit is None, vmin and vmax will be treated as pixels! otherwise,
+            give it a velocity or wavelength value
+
+        Returns
+        --------
+        out : `telassar.PVSlice` object
+        '''
+
+        if self.world.spectral_unit is None:
+            raise ValueError("We need coordinates along the spectral direction")
+
+        if vmax is None:
+            vmax = vmin
+
+        if unit is None:
+            pmin = max(0, int(vmin + 0.5))
+            pmax = min(self.shape[1], int(vmax + 0.5))
+
+        else:
+            pmin = max(0, self.world.wav2pix(vmin, nearest=True))
+            pmax = min(self.shape[1], self.world.wav2pix(vmax, nearest = True) + 1)
+
+        return self[:, pmin:pmax]
+
+    def spatial_window(self, amin, amax = None, unit = None):
+        '''
+        Return a view of a spatial window
 
         Parameters
         ----------
-        title : str
-            Want a title?
-        show_xlab : bool
-            Self explanatory
-        show_ylab : bool
-            again
-        ax : `matplotlib.axes.Axes`
-            send your own axis instance, else use `matplotlib.pyplot.gca()`
-        unit : str, or `astropy.units.Unit`
-            Do you want units? None by default
-        kwargs : `matplotlib.artist.Artist`
-            any other arguments to be passed to the `ax.plot()` function
+        amin : float
+            the lower bound of the view; assumed in arcseconds
+        amax : float or None
+            the upper bound of the view. if None, only a single pixel value will
+            be returned (in arcseconds). NOTE: this pixel value will span the
+            entire wavelength range!
+        unit : `astropy.units.Unit` or None
+            if no unit is specified, values will be treated like pixels. otherwise,
+            give it a u.arcsec value or something.
+
+        Returns
+        ---------
+        out : `telassar.PVSlice` obj
         '''
-        import matplotlib.pyplot as plt
+
+        if self.world.spatial_unit is None:
+            raise ValueError("We need coordinates along the spatial direction")
+
+        if amax is None:
+            amax = amin
+
+        if unit is None:
+            pmin = max(0, int(amin + 0.5))
+            pmax = min(self.shape[0], int(amax + 0.5))
+
+        else:
+            pmin = max(0, self.world.offset2pix(amin, nearest=True))
+            pmax = min(self.shape[0], self.world.offset2pix(amax, nearest = True) + 1)
+
+        return self[pmin:pmax, :]
+
+    def plot(self, scale = 'linear', ax = None, ax_kws = None, imshow_kws = None,
+             vmin = None, vmax = None, zscale = None, emline = None):
+        '''
+        This function generates an simple plot of the desired data.
+
+        Parameters
+        ----------
+        scale : str
+            the interpolation style desired. default is linear, but can accept
+            others from the list:
+                ['linear', 'log', 'asinh', 'arcsinh', 'sqrt']
+        ax : None or `matplotlib.pyplot.axes` instance
+            instanciate plotter with an axis?
+        ax_kws : None or dict
+            keywords to be passed to the `plt.subplots()` routine
+        imshow_kws : None or dict
+            keywords to be passed to the `plt.imshow()` routine
+        vmin : None or float
+            minimum value for plotting normalization
+        vmax : None or float
+            maximum value for plotting normalization
+        zscale : None or str
+            do you want a zscale normalization?
+        emline : None or str
+            can optionally pass an emission line name, and the list of lines
+            from above is checked to create a pretty title
+
+        '''
 
         if ax_kws is None:
             ax_kws = {}
         if imshow_kws is None:
             imshow_kws = {}
 
+        emis = None
+        if emline is not None:
+            if emline in lines.keys():
+                emis = lines[emline][2]
+
+                #print(emis)
         if ax is None:
-            fig, ax = plt.subplots(subplot_kw = ax_kws)
+            #fig, ax = plt.subplots(subplot_kw = ax_kws)
+            fig, ax = plt.subplots(figsize = (5, 9), **ax_kws)
+            #ax = plt.gca()
+            #ax.grid(True)
 
         # set the data and plot parameters
+        res = self.copy()
         data = self.data.copy()
         spectral_unit = u.Unit(self.world.spectral_unit).to_string('latex')
         spatial_unit = u.Unit(self.world.spatial_unit).to_string('latex')
@@ -73,19 +168,138 @@ class PVSlice(Data2D):
             x_type = ''
         norm = get_plot_norm(data, vmin = vmin, vmax = vmax, zscale = zscale,
                              scale = scale)
-        extent = get_plot_extent(self.world)
-        cax = ax.imshow(data, interpolation = 'nearest', origin = 'lower', norm =
-                        norm, extent = extent, **imshow_kws)
 
-        #if title is not None:
+        extent = get_plot_extent(self.world)
+
+        ax.format_coord = ImPlotter(res, data)
+        cax = ax.imshow(data, interpolation = 'nearest', origin = 'lower', norm =
+                        norm, extent = extent,**imshow_kws) #extent = extent,
+
+        if 'title' not in ax_kws.items() and emis is not None:
+            ax.set_title(rf'{emis}')
         #    ax.set_title(title)
         ax.set_xlabel(rf'{x_type} ({spectral_unit})')
         ax.set_ylabel(rf'{y_type} ({spatial_unit})')
+        ax.margins(0.05)
+        ax.xaxis.set_minor_locator(AutoMinorLocator())
+        ax.yaxis.set_minor_locator(AutoMinorLocator())
+        ax.tick_params(which = 'major', direction = 'inout', length = 9)
+        ax.tick_params(which = 'minor', direction = 'inout', length = 6)
 
         # format the coordinates
-        ax.format_coord = ImPlotter(self, data)
+        toggle_unit = True if extent is not None else False
+        ax.format_coord = ImPlotter(res, data, toggle_unit)
 
         return cax
+
+    def plot_contours(self, sig = None, mask = None, levels1 = None, levels2 = None,
+                      cmaps = None):
+        '''
+        Generate a contour plot of the data. Useful for jet visualization!
+
+        Parameters
+        -----------
+        sigma : None or float
+            the basis for generating levels. a 3sigma value indicates detection
+            of a source, we abbreviate it here to just sigma
+        levels1 : None or `np.ndarray` or list
+            the contour levels for the jets
+        levels2 : None or `np.ndarray` or list
+            the contour levels for the background
+        cmap1 : None or `matplotlib.colors.Colormap`
+            the first colormap to pass to `plt.contour`
+        cmap2 : None or `matplotlib.colors.Colormap`
+            the second colormap to pass to `plt.contour`
+        '''
+        # default cmap colors
+        colors = ['gist_gray', 'Oranges', 'gray']
+        data = self.data.copy()
+        # generate a sigma based on the data?
+        sig = get_background_rms(data, sigma=4, N=10, mask=None)
+
+        #sigsqrt2 = sig * np.sqrt(2)
+        #print(3*sig)
+        #print(sig)
+
+        if (levels1 is None) or (levels2 is None):
+            lvls1, lvls2 = get_contour_levels(data, sig)
+
+        levels1 = levels1 if levels1 is not None else lvls1
+        levels2 = levels2 if levels2 is not None else lvls2
+
+        cmaps = colors if cmaps is None else cmaps
+
+        extent = get_plot_extent(self.world)
+
+        spectral_unit = u.Unit(self.world.spectral_unit).to_string('latex')
+        spatial_unit = u.Unit(self.world.spatial_unit).to_string('latex')
+        if self.world.wcs.wcs.ctype[0] == 'OFFSET':
+            y_type = rf'Offset'
+        else:
+            y_type = ''
+        if self.world.wcs.wcs.ctype[1] == 'VELO':
+            x_type = r'V$_{rad}$'
+        elif self.world.wcs.wcs.ctype[1] in ['WAVE', 'AWAV']:
+            x_type = r'$\lambda$'
+        else:
+            x_type = ''
+
+        fig, ax = plt.subplots(figsize = (4, 9))
+        jet1 = ax.contour(data, levels=levels1, cmap=cmaps[0], extent=extent)
+        jet2 = ax.contourf(data, levels=levels1, cmap=cmaps[1], extent=extent)
+        bkgrd = ax.contourf(data, levels=levels2, cmap=cmaps[2], extent=extent,
+                            alpha = 0.8)
+
+        #if 'title' not in ax_kws.items() and emis is not None:
+        #    ax.set_title(rf'{emis}')
+        #    ax.set_title(title)
+        ax.set_xlabel(rf'{x_type} ({spectral_unit})')
+
+        ax.set_ylabel(rf'{y_type} ({spatial_unit})', labelpad = 1)
+        ax.margins(0.05)
+        ax.xaxis.set_minor_locator(AutoMinorLocator())
+        ax.yaxis.set_minor_locator(AutoMinorLocator())
+        ax.tick_params(which = 'major', direction = 'inout', length = 9)
+        ax.tick_params(which = 'minor', direction = 'inout', length = 6)
+
+
+        # format the coordinates
+        toggle_unit = True if extent is not None else False
+        ax.format_coord = ImPlotter(self, data, toggle_unit)
+        # make sure the labels aren't clipped?
+        fig.tight_layout()
+        return ax
+
+    def moments(self, units = False):
+        '''
+        Return [y_width, x_width] moments (order=1) of a 2D gaussian
+        Essentially the same as the example from the SciPy Cookbook:
+        https://scipy-cookbook.readthedocs.io/items/FittingData.html
+
+        Parameters
+        ----------
+        units : bool
+            if True, convert the widths to units; otherwise treat them as pixels
+
+        Returns
+        ----------
+        out : `np.ndarray`
+        '''
+
+        # use absolute values to ensure no issues with sqrt
+        total = np.abs(data).sum()
+        Y, X = np.indices(data.shape)
+        y = np.argmax((X * np.abs(data)).sum(axis = 1) / total)
+        x = np.argmax((Y * np.abs(data)).sum(axis = 0) /total)
+        col = data[int(y), :]
+        row = data[:, int(x)]
+        xwidth = np.sqrt(np.abs((np.arange(col.size) - y)*col).sum() /
+                         np.abs(col).sum())
+        ywidth = np.sqrt(np.abs((np.arange(row.size) - x)*row).sum() /
+                         np.abs(row).sum())
+        height = data.max()
+        #mom = np.array([ywidth, xwidth])
+        return height, y, x, ywidth, xwidth
 
     def _prep_data(self, interp = 'no'):
         '''
