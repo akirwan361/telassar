@@ -3,10 +3,13 @@ import astropy.units as u
 from numpy import ma
 import numpy as np
 from lmfit import models
+import matplotlib.pyplot as plt
+from matplotlib.ticker import AutoMinorLocator
 
 from .data import Data2D
 from .world import World
-from .plotter import ImPlotter, get_plot_norm, get_plot_extent
+from .plotter import (ImPlotter, get_plot_norm, get_plot_extent,
+                      get_background_rms, get_contour_levels)
 
 # a running line list
 
@@ -130,8 +133,6 @@ class PVSlice(Data2D):
             from above is checked to create a pretty title
 
         '''
-        import matplotlib.pyplot as plt
-        from matplotlib.ticker import AutoMinorLocator
 
         if ax_kws is None:
             ax_kws = {}
@@ -192,7 +193,7 @@ class PVSlice(Data2D):
         return cax
 
     def plot_contours(self, sig = None, mask = None, levels1 = None, levels2 = None,
-                      cmap1 = None, cmap2 = None, cmap3 = None):
+                      cmaps = None):
         '''
         Generate a contour plot of the data. Useful for jet visualization!
 
@@ -210,43 +211,23 @@ class PVSlice(Data2D):
         cmap2 : None or `matplotlib.colors.Colormap`
             the second colormap to pass to `plt.contour`
         '''
-
-        import matplotlib.pyplot as plt
-        from matplotlib.ticker import AutoMinorLocator
-        from astropy.stats import SigmaClip
-        from photutils import Background2D, MedianBackground, StdBackgroundRMS
-
-        data = self._data.copy()
+        # default cmap colors
+        colors = ['gist_gray', 'Oranges', 'gray']
+        data = self.data.copy()
         # generate a sigma based on the data?
-        if sig is None:
-            sigma_clip = SigmaClip(sigma=3)
-            mask = self.mask if mask is None else mask
-            bkg_estimator = MedianBackground()
-            rms_estimator = StdBackgroundRMS()
-            bkg = Background2D(data, (60, 30), filter_size = (3,3),
-                              sigma_clip=sigma_clip, bkg_estimator=bkg_estimator,
-                              bkgrms_estimator = rms_estimator, mask=mask)
+        sig = get_background_rms(data, sigma=4, N=10, mask=None)
 
-        sig = sig if sig is not None else bkg.background_rms_median
+        #sigsqrt2 = sig * np.sqrt(2)
+        #print(3*sig)
+        #print(sig)
 
-        sigsqrt2 = sig * np.sqrt(2)
-        if levels1 is None:
-            lvls1 = np.array([sig * 2 * np.sqrt(2)**i for i in range(0, 13, 2)])
-        if levels2 is None:
-            lvls2 = np.linspace(np.log(np.abs(self.min())), 1*sig, 9)
-        if cmap1 is None:
-            cm1 = 'gist_gray'
-        if cmap2 is None:
-            cm2 = 'Oranges'
-        if cmap3 is None:
-            cm3 = 'gray'
-
-        cmap1 = cmap1 if cmap1 is not None else cm1
-        cmap2 = cmap2 if cmap2 is not None else cm2
-        cmap3 = cmap3 if cmap3 is not None else cm3
+        if (levels1 is None) or (levels2 is None):
+            lvls1, lvls2 = get_contour_levels(data, sig)
 
         levels1 = levels1 if levels1 is not None else lvls1
         levels2 = levels2 if levels2 is not None else lvls2
+
+        cmaps = colors if cmaps is None else cmaps
 
         extent = get_plot_extent(self.world)
 
@@ -264,9 +245,10 @@ class PVSlice(Data2D):
             x_type = ''
 
         fig, ax = plt.subplots(figsize = (4, 9))
-        jet1 = ax.contour(data, levels=levels1, cmap=cmap1, extent=extent)
-        jet2 = ax.contourf(data, levels=levels1, cmap=cmap2, extent=extent)
-        bkgrd = ax.contourf(data, levels=levels2, cmap=cmap3, extent=extent)
+        jet1 = ax.contour(data, levels=levels1, cmap=cmaps[0], extent=extent)
+        jet2 = ax.contourf(data, levels=levels1, cmap=cmaps[1], extent=extent)
+        bkgrd = ax.contourf(data, levels=levels2, cmap=cmaps[2], extent=extent,
+                            alpha = 0.8)
 
         #if 'title' not in ax_kws.items() and emis is not None:
         #    ax.set_title(rf'{emis}')
