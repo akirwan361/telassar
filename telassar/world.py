@@ -67,7 +67,7 @@ def wcs_from_cube_header(hdr):
         new_wcs.wcs.pc[1,0] = new_wcs.wcs.pc[0,1] = 0
     except AttributeError:
         pass
-
+    new_wcs.wcs.set()
     return new_wcs
 
 def wcs_from_pv_header(hdr):
