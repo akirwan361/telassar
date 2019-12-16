@@ -101,7 +101,9 @@ class PVSlice(Data2D):
 
         else:
             pmin = max(0, self.world.offset2pix(amin, nearest=True))
+            #print(pmin)
             pmax = min(self.shape[0], self.world.offset2pix(amax, nearest = True) + 1)
+            #print(pmax)
 
         return self[pmin:pmax, :]
 
@@ -211,17 +213,22 @@ class PVSlice(Data2D):
         cmap2 : None or `matplotlib.colors.Colormap`
             the second colormap to pass to `plt.contour`
         '''
+
+        from .tools import timeit
+        #from timeit import Timer
         # default cmap colors
         colors = ['gist_gray', 'Oranges', 'gray']
         data = self.data.copy()
         # generate a sigma based on the data?
-        sig = get_background_rms(data, sigma=4, N=10, mask=None)
+        sig = get_background_rms(data, sigma=3., N=10, mask=None)
 
-        #sigsqrt2 = sig * np.sqrt(2)
-        #print(3*sig)
-        #print(sig)
 
         if (levels1 is None) or (levels2 is None):
+            #t = timeit(get_contour_levels)
+            #print(t)
+            #print(t.timeit(100))
+            #print(time.timed)
+            
             lvls1, lvls2 = get_contour_levels(data, sig)
 
         levels1 = levels1 if levels1 is not None else lvls1
@@ -268,6 +275,7 @@ class PVSlice(Data2D):
         ax.format_coord = ImPlotter(self, data, toggle_unit)
         # make sure the labels aren't clipped?
         fig.tight_layout()
+        print(sig)
         return ax
 
     def moments(self, units = False):
