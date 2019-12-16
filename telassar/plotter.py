@@ -144,6 +144,7 @@ def get_background_rms(data, sigma = 3, N = 10, mask = None):
         print('Exception: ', e)
         ndata = ma.getdata(data)
 
+    print(ndata.shape)
     # get the background RMS. This calls `photutils.Background2D`
     sigma_clip = SigmaClip(sigma=sigma)
     bkg_estimator = MedianBackground()
