@@ -81,7 +81,6 @@ def wcs_from_pv_header(hdr):
     # Make sure the WCS info is in [spatial, spectral]
     # order
     if mywcs.wcs.cdelt[0] == 0.2:
-        #print(mywcs.pixel_shape)
         pass
     elif mywcs.wcs.cdelt[1] == 0.2:
         mywcs = mywcs.swapaxes(0,1)
@@ -91,7 +90,7 @@ def wcs_from_pv_header(hdr):
             mywcs.pixel_shape = mywcs.pixel_shape[::-1]
 
     # Is this velocity or wavelength?
-    if mywcs.wcs.crval[1] < 1:
+    if mywcs.wcs.crval[1] < 0.:
         ctype2 = 'VELO'
         cunit2 = u.Unit('km/s').to_string('fits')
     else:
@@ -100,9 +99,9 @@ def wcs_from_pv_header(hdr):
 
     ctype1 = 'OFFSET'
     cunit1 = u.Unit('arcsec').to_string('fits')
-    crpix = np.array([hdr['CRPIX1'], hdr['CRPIX2']])
+    crpix1 = hdr['CRPIX1']
 
-    mywcs.wcs.crpix = [crpix[0], 1.]
+    mywcs.wcs.crpix = [crpix1, 1.]
     mywcs.wcs.ctype = [ctype1, ctype2]
     #mywcs.wcs.cunit = [cunit1, cunit2]
 
@@ -126,7 +125,7 @@ class World:
         if (hdr is not None):
             h = hdr.copy()
             #print(h)
-            n = h['NAXIS']
+            n = h['NAXIS'] or h['WCSAXES']
             self.shape = h['NAXIS%d' % n]
             if n == 3:
                 self.wcs = wcs_from_cube_header(h)
@@ -138,7 +137,7 @@ class World:
             elif self.wcs.wcs.ctype[0] == 'OFFSET':
                 self.spatial_unit = u.Unit('arcsec')
             #print(self.wcs.wcs.cunit[1])
-            if self.wcs.wcs.cunit[1] == 'm':
+            if self.wcs.wcs.cunit[1] == 'm' or (self.wcs.wcs.ctype[1] == 'AWAV'):
                 self.spectral_unit = u.Unit('angstrom')
             elif (self.wcs.wcs.cunit[1] == u.Unit('km/s')) or (self.wcs.wcs.ctype[1] == 'VELO'):
                 self.spectral_unit = u.Unit('km/s')
