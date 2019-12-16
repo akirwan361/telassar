@@ -1,0 +1,13 @@
+.env/
+__pycache__/
+*py[ocd]
+.ipynb_checkpoints/
+/bin
+/etc
+/include
+/lib
+/lib64
+/share
+pyvenv.cfg
+
+
