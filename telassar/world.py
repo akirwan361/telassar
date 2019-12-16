@@ -100,8 +100,9 @@ def wcs_from_pv_header(hdr):
 
     ctype1 = 'OFFSET'
     cunit1 = u.Unit('arcsec').to_string('fits')
+    crpix = np.array([hdr['CRPIX1'], hdr['CRPIX2']])
 
-    mywcs.wcs.crpix = np.array([1., 1.])
+    mywcs.wcs.crpix = [crpix[0], 1.]
     mywcs.wcs.ctype = [ctype1, ctype2]
     #mywcs.wcs.cunit = [cunit1, cunit2]
 
