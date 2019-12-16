@@ -2,6 +2,7 @@ import astropy.units as u
 import numpy as np
 from numpy import ma
 import matplotlib.pyplot as plt
+from .tools import timeit
 
 
 class ImPlotter:
@@ -140,7 +141,7 @@ def get_background_rms(data, sigma = 3, N = 10, mask = None):
             ndata = ndata.reshape(data.shape)
         #print(ndata.shape)
     except Exception as e:
-        print(e)
+        print('Exception: ', e)
         ndata = ma.getdata(data)
 
     # get the background RMS. This calls `photutils.Background2D`
@@ -159,17 +160,37 @@ def get_contour_levels(data, sigma):
     '''
     Generate contour levels?
     '''
+    # quick upper/lower bound for exponents
+    # Contours typically start between 3sigma and 5sigma and are based on a
+    # sqrt(2) log scale, such that
+    #   lvls = (4/3) * sigma * sqrt(2)^x
+    # which begins the levels at 4sigma
+    # By default, the lower and upper levels are 0.017 and 1, and the exponents
+    # are found by:
+    #   x = (2 * ln(3 * lvls / sigma) / ln(2) - 4
+    expo = lambda lvl, sgma : (2 * np.log(3 * lvl/sgma) / np.log(2)) - 4
 
+    # get min and max of data
     dmax = data.max()
     dmin = data.min()
 
-    # from practice, the most reliable levels are from a sqrt(2) log scale.
-    # testing various levels, I've found the following to be a good basis:
-    #       lvls = np.array([sigma * 2 * sqrt(2)**i for i in range(0,x,N)])
-    # for now just leave the values here I guess, since if the range above isn't
-    # chosen carefully the final level value can be less than data.max()
-    scale = np.array([0.01697583, 0.03395166, 0.06790333, 0.13580666,
-                      0.27161332, 0.54322664, 1.08645327])
-    lvls1 = dmax * scale
+    # get upper and lower contour levels
+    l0 = 0.01697583 * dmax
+    l1 = 1. * dmax
+
+    # get upper and lower exponent bounds
+    n0 = expo(l0, sigma)
+    n1 = expo(l1, sigma)
+
+    # get range of exponents. by default, ,there are 7 levels
+    xp = np.linspace(n0, n1, 7)
+
+    # get primary and background contour levels
+    lvls1 = (4/3) * sigma * np.sqrt(2)**xp
     lvls2 = np.linspace(dmin, 0.8 * sigma, 9)
+
+    #scale = np.array([0.01697583, 0.03395166, 0.06790333, 0.13580666,
+    #                  0.27161332, 0.54322664, 1.08645327])
+    #lvls1 = dmax * scale
+
     return lvls1, lvls2
