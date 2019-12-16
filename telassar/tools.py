@@ -12,11 +12,12 @@ This is just an assortment of possibly useful tools that can be called
 from anywhere. Mostly to keep clean.
 """
 
-def timeit(f):
+def timeit(f, *args, **kwargs):
     @wraps(f)
     def timed(*args, **kwds):
         t0 = time()
         res = f(*args, **kwds)
+        t1 = time()
         return res
     return timed
 
