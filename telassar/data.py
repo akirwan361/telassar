@@ -196,36 +196,52 @@ class Data2D:
         filename = self.filename
         reshape = None
 
-        if isinstance(item, (list, tuple)) and len(item) == 2:
-            try:
-                wcs = self.world[item]
+        if self.ndim == 2:
+            # handle a PVSlice[ii,jj] where ii, jj can be int or slice
+            # objects
+            if isinstance(item, (list, tuple)) and len(item) == 2:
+                try:
+                    wcs = self.world[item]
+                    #print(wcs)
+                except Exception:
+                    print('No WCS information available')
+                    wcs = None
                 #print(wcs)
-            except Exception:
-                print('No WCS information available')
-                wcs = None
-            #print(wcs)
-            if isinstance(item[0], int) != isinstance(item[1], int):
-                if isinstance(item[0], int):
+                if isinstance(item[0], int) != isinstance(item[1], int):
+                    if isinstance(item[0], int):
+                        reshape = (1, data.shape[0])
+                    else:
+                        reshape = (data.shape[0], 1)
+
+            elif isinstance(item, (int, slice)):
+
+                try:
+                    wcs = self.world[item, slice(None)]
+                except Exception:
+                    wcs = None
+
+                if isinstance(item, int):
                     reshape = (1, data.shape[0])
-                else:
-                    reshape = (data.shape[0], 1)
 
-        elif isinstance(item, (int, slice)):
+            elif item is not None or item is ():
+                try:
+                    wcs = self.world.copy()
+                except Exception:
+                    wcs = None
 
-            try:
-                wcs = self.wcs[item, slice(None)]
-            except Exception:
-                wcs = None
-
-            if isinstance(item, int):
-                reshape = (1, data.shape[0])
-
-        elif item is not None or item is ():
-            try:
-                wcs = self.world.copy()
-            except Exception:
-                wcs = None
-
+        elif self.ndim == 1:
+            # handle a spatial or spectral profile
+            if isinstance(item, slice):
+                try:
+                    wcs = self.world[item]
+                except Exception:
+                    wcs = None
+            elif item is None or item is ():
+                try:
+                    wcs = self.world.copy()
+                except Exception:
+                    wcs = None
+        # do we need to reshape?
         if reshape is not None:
             data = data.reshape(reshape)
             if mask is not ma.nomask:
