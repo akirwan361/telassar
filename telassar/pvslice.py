@@ -106,6 +106,34 @@ class PVSlice(Data2D):
             #print(pmax)
 
         return self[pmin:pmax, :]
+        
+    def spatial_profile(self, wave, arc, unit1 = None, unit2 = None):
+
+        if len(arc) != 2 or len(wave) !=2:
+            raise ValueError("Can't extract profile with only one point!")
+
+        # get the spatial and spectral limits in pixel or arcseconds
+        if unit1 is None:
+            pmin = max(0, int(arc[0] + 0.5))
+            pmax = min(self.shape[0], int(arc[1] + 0.5))
+        else:
+            pmin = max(0, self.world.offset2pix(arc[0], nearest=True))
+            pmax = min(self.shape[0], self.world.offset2pix(arc[1], nearest=True))
+
+        if unit2 is None:
+            lmin = max(0, int(wave[0] + 0.5))
+            lmax = min(self.shape[1], int(wave[1] + 0.5))
+        else:
+            lmin = max(0, self.world.wav2pix(wave[0], nearest=True))
+            lmax = min(self.shape[1], self.world.wav2pix(wave[1], nearest=True))
+
+
+        sx = slice(pmin, pmax)
+        sy = slice(lmin, lmax)
+
+        res = np.sum(self._data[sx, sy], axis=1)
+
+        return res
 
     def plot(self, scale = 'linear', ax = None, ax_kws = None, imshow_kws = None,
              vmin = None, vmax = None, zscale = None, emline = None):
@@ -224,11 +252,6 @@ class PVSlice(Data2D):
 
 
         if (levels1 is None) or (levels2 is None):
-            #t = timeit(get_contour_levels)
-            #print(t)
-            #print(t.timeit(100))
-            #print(time.timed)
-            
             lvls1, lvls2 = get_contour_levels(data, sig)
 
         levels1 = levels1 if levels1 is not None else lvls1
@@ -275,7 +298,7 @@ class PVSlice(Data2D):
         ax.format_coord = ImPlotter(self, data, toggle_unit)
         # make sure the labels aren't clipped?
         fig.tight_layout()
-        print(sig)
+        #print(sig)
         return ax
 
     def moments(self, units = False):
