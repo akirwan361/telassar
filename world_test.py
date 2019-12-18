@@ -130,7 +130,7 @@ class Position:
             self.wcs.wcs.ctype[0] = ctype
             self.wcs.wcs.cdelt[0] = cdelt
             self.wcs.wcs.crpix[0] = crpix
-            self.wcs.pixel_shape = shape
+            self.wcs.pixel_shape = (shape,)
             #self.wcs.wcs.cunit = [unit1, unit2]
 
         #self.wcs.wcs.set()
@@ -152,14 +152,14 @@ class Position:
         unit = unit or self.unit
         start = self.get_start(unit=unit)
         step = self.get_step(unit=unit)
-        type = self.wcs.ctype[0].capitalize()
+        type = self.wcs.wcs.ctype[0].capitalize()
 
         if self.shape is None:
             self.__logger.info(f'Spatial {type}: min: {start:0.2f} step: \
                                {step:0.3f}"')
         else:
             end = self.get_stop(unit=unit)
-            self.__loger.info(f'Spatial {type}: min {start:0.2f} max: {stop:0.2f} \
+            self.__logger.info(f'Spatial {type}: min {start:0.2f} max: {stop:0.2f} \
                                step: {step:0.3f}"')
 
     def __getitem__(self, item):
@@ -242,7 +242,7 @@ class Position:
         res = self.wcs.wcs_pix2world(pixarr, 0)[0]
 
         if unit is not None:
-            res = (res * self.spatial_unit).to(unit).value
+            res = (res * self.unit).to(unit).value
 
         return res[0] if np.isscalar(pix) else res
 
@@ -259,7 +259,7 @@ class Position:
             step = cdelt * pc
 
         if unit is not None:
-            step = (step * self.spatial_unit).to(unit).value
+            step = (step * self.unit).to(unit).value
         return step
 
     def set_step(self, x, unit = None):
@@ -269,7 +269,7 @@ class Position:
         """
 
         if unit is not None:
-            step = (x * unit).to(self.spatial_unit).value
+            step = (x * unit).to(self.unit).value
         else:
             step = x
 
@@ -297,7 +297,7 @@ class Position:
             return self.pix2offset(self.shape - 1)
 
 
-class Velocity:
+class VelWave:
 
     def __init__(self, hdr = None, crpix = 1., crval = 1., cdelt = 1.,
                  unit = u.angstrom, ctype = 'LINEAR', shape = None):
@@ -333,13 +333,111 @@ class Velocity:
             self.wcs.wcs.ctype[0] = ctype
             self.wcs.wcs.cdelt[0] = cdelt
             self.wcs.wcs.crpix[0] = crpix
-            self.wcs.pixel_shape = shape
+            # this is weird but go with it
+            self.wcs.pixel_shape = (shape,)
 
         #self.wcs.wcs.set()
         self.shape = self.wcs.pixel_shape[0] if shape is None else shape
 
     def __repr__(self):
         return(repr(self.wcs))
+
+    def info(self, unit = None):
+
+        unit = unit or self.unit
+        start = self.get_start(unit=unit)
+        step = self.get_step(unit=unit)
+        type = self.wcs.wcs.ctype[0].capitalize()
+
+        if self.shape is None:
+            self.__logger.info(f'Spatial {type}: min: {start:0.2f} step: \
+                               {step:0.3f}"')
+        else:
+            end = self.get_stop(unit=unit)
+            self.__logger.info(f'Spatial {type}: min {start:0.2f} max: {stop:0.2f} \
+                               step: {step:0.3f}"')
+
+    def __getitem__(self, item):
+
+        if item is None:
+            return self
+
+        elif isinstance(item, int):
+            if item >=0:
+                val = self.pix2wav(pix=item)
+            else:
+                if self.shape is None:
+                    raise ValueError("Can't return an index without a shape")
+                else:
+                    val = self.pix2wav(pix = self.shape + item)
+            return Position(crpix=1., crval = val, cdelt=0., unit=self.unit,
+                            ctype = self.wcs.wcs.ctype[0], shape=1)
+
+        elif isinstance(item, slice):
+            if item.start is None:
+                start = 0
+            elif item.start >=0:
+                start = item.start
+            else:
+                if self.shape is None:
+                    raise ValueError("Can't return an index without a shape")
+                else:
+                    start = self.shape + item.start
+            if item.stop is None:
+                if self.shape is None:
+                    raise ValueError("Can't return an index without a shape")
+                else:
+                    stop = self.shape
+            elif item.stop >=0:
+                stop = item.stop
+            else:
+                if self.shape is None:
+                    raise ValueError("Can't return an index without a shape")
+                else:
+                    stop = self.shape + item.stop
+            newval = self.pix2wav(pix=np.arange(start, stop, item.step))
+            dimens = newval.shape[0]
+
+            if dimens < 2:
+                raise ValueError("Velocity/Wavelength with dimension < 2")
+            cdelt = newval[1] - newval[0]
+            return VelWave(crpix = 1., crval = newval[0], cdelt = cdelt,
+                            unit = self.unit, ctype = self.wcs.wcs.ctype[0],
+                            shape = dimens)
+        else:
+            raise ValueError("Can't do it!")
+
+    def wav2pix(self, val, nearest = False):
+        """
+        Return a pixel value if given an offset value in
+        arcseconds
+        """
+        x = np.atleast_1d(val)
+
+        # tell world2pix to make 0-relative array coordinates
+        pix = self.wcs.wcs_world2pix(x, 0)[0]
+
+        if nearest:
+            pix = (pix + 0.5).astype(int)
+            np.maximum(pix, 0, out = pix)
+            if self.shape is not None:
+                np.minimum(pix, self.shape-1, out = pix)
+        return pix[0] if np.isscalar(val) else pix
+
+    def pix2wav(self, pix=None, unit = None):
+
+        if pix is None:
+            pixarr = np.arange(self.shape, dtype = float)
+        else:
+            pixarr = np.atleast_1d(pix)
+
+        res = self.wcs.wcs_pix2world(pixarr, 0)[0]
+
+        if unit is not None:
+            res = (res * self.unit).to(unit).value
+
+        return res[0] if np.isscalar(pix) else res
+
 """
 
     @property
