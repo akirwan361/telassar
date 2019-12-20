@@ -5,12 +5,12 @@ from numpy import ma
 
 import logging
 
-from .world import World
+from .world import Position, VelWave
 
 class Data2D:
 
     def __init__(self, filename = None, data = None, mask = False, dtype = None,
-                 ext = None, header = None, unit = None, wcs = None):
+                 ext = None, header = None, unit = None, wcs = None, spec=None):
 
         #hdul = None
         #logging.basicConfig(level=logging.DEBUG)
@@ -23,7 +23,8 @@ class Data2D:
         self._dtype = dtype
         self.header = header or fits.Header()
         #self.unit = u.Unit(unit)
-        self.world = None
+        self.position = None
+        self.velwave = None
 
 
         if (filename is not None) and (data is None):
@@ -41,7 +42,8 @@ class Data2D:
             else:
                 self.flux_unit = u.dimensionless_unscaled
             self._mask = ~(np.isfinite(self._data))
-            self.world = World(self.header)
+            self.position = Position(self.header)
+            self.velwave = VelWave(self.header)
 
         else:
             if mask is ma.nomask:
@@ -71,10 +73,16 @@ class Data2D:
 
             self.flux_unit = u.Unit(u.dimensionless_unscaled)
             if wcs is not None:
-                self.world = wcs
+                self.position = wcs
             else:
-                self.world = World(self.header)
-            self.header = self.world.wcs.to_header()
+                self.position = Position(self.header)
+            if spec is not None:
+                self.velwave = spec
+            else:
+                self.velwave = VelWave(self.header)
+
+            #TODO: fix a header for objects initialized from data?
+            #self.header = self.world.wcs.to_header()
             #self.world = World(self.header)
 
     @property
@@ -140,13 +148,11 @@ class Data2D:
 
 
         try:
-            kwargs['wcs'] = object.world
-            #kwargs['mode'] = get_mode_from_unit(object.unit)
-            #print("I'm in the first try statement") #doctest
+            kwargs['wcs'] = object.position
+            kwargs['spec'] = object.velwave
         except AttributeError:
-            #mode = get_mode_from_unit(unit)
-            kwargs['wcs'] = World(object.header)#, mode = mode)
-
+            kwargs['wcs'] = Position(object.header)
+            kwargs['spec'] = VelWave(object.header)
         return cls(**kwargs)
 
     def copy(self):
@@ -161,8 +167,8 @@ class Data2D:
         fmt = """<{}(shape={}, spatial unit = '{}', spectral unit = '{}',
             dtype = '{}')>"""
         return fmt.format(self.__class__.__name__, self.shape,
-                          str(self.world.spatial_unit),
-                          str(self.world.spectral_unit).replace(' ', ''),
+                          str(self.position.unit),
+                          str(self.velwave.unit).replace(' ', ''),
                           self._dtype)
 
     def info(self):
@@ -174,15 +180,20 @@ class Data2D:
             self.filename or 'no name')
 
         data = ('no data' if self._data is None else f'.data({shape_str})')
-        spec_unit = str(self.world.spectral_unit) or 'no unit'
-        spat_unit = str(self.world.spatial_unit) or 'no unit'
+        spec_unit = str(self.position.unit) or 'no unit'
+        spat_unit = str(self.velwave.unit) or 'no unit'
 
         log('%s (%s %s)', data, spat_unit, spec_unit.replace(' ', ''))
         #print('%s (%s,  %s)' % (data, spat_unit, spec_unit))
-        if self.world is None:
+        if self.position is None:
             log('No world coordinates installed')
         else:
-            self.world.info()
+            self.position.info()
+
+        if self.velwave is None:
+            log('No spectral coordinates installed')
+        else:
+            self.velwave.info()
 
     def __getitem__(self, item):
 
@@ -201,11 +212,13 @@ class Data2D:
             # objects
             if isinstance(item, (list, tuple)) and len(item) == 2:
                 try:
-                    wcs = self.world[item]
+                    wcs = self.position[item[0]]
+                    spec = self.velwave[item[1]]
                     #print(wcs)
                 except Exception:
                     print('No WCS information available')
                     wcs = None
+                    spec = None
                 #print(wcs)
                 if isinstance(item[0], int) != isinstance(item[1], int):
                     if isinstance(item[0], int):
@@ -216,31 +229,43 @@ class Data2D:
             elif isinstance(item, (int, slice)):
 
                 try:
-                    wcs = self.world[item, slice(None)]
+                    wcs = self.position[item[0], slice(None)]
+                    spec = self.velwave[item[1], slice(None)]
                 except Exception:
                     wcs = None
+                    spec = None
 
                 if isinstance(item, int):
                     reshape = (1, data.shape[0])
 
             elif item is not None or item is ():
                 try:
-                    wcs = self.world.copy()
+                    wcs = self.position.copy()
+                    spec = self.velwave.copy()
                 except Exception:
                     wcs = None
+                    spec = None
 
         elif self.ndim == 1:
             # handle a spatial or spectral profile
             if isinstance(item, slice):
                 try:
-                    wcs = self.world[item]
+                    wcs = self.position[item]
                 except Exception:
                     wcs = None
+                try:
+                    spec = self.velwave[item]
+                except Exception:
+                    spec = None
             elif item is None or item is ():
                 try:
-                    wcs = self.world.copy()
+                    wcs = self.position.copy()
                 except Exception:
                     wcs = None
+                try:
+                    spec = self.velwave.copy()
+                except Exception:
+                    spec = None
         # do we need to reshape?
         if reshape is not None:
             data = data.reshape(reshape)
@@ -249,7 +274,7 @@ class Data2D:
 
         return self.__class__(
             filename = filename, data = data, mask = mask, dtype = self._dtype,
-            ext = self.ext, header = self.header, wcs = wcs)
+            ext = self.ext, header = self.header, wcs = wcs, spec = spec)
 
     def min(self):
         '''
