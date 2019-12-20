@@ -32,49 +32,6 @@ def solve_linear_set(matrix, vector):
     x = np.dot(inv_mat, B)
     return x
 
-def format_header(hdr, mode):
-
-    hdu = hdr.copy()
-    #print(hdu)
-    # get some values and make some assumptions
-    # `cunit` can be discovered from the mode
-    # `cdelt` is, for now, either 0.2 (for arcsec) or 1.25 (for angstrom)
-    # because this is how MUSE handles it. Setters exist to change these
-    # values. If no mode is passed, `cdelt` is 1. and `cunit` is 'pixel'
-    cunit = get_unit_from_mode(mode)
-    #print('cunit = ', cunit)
-    ctype = "LINEAR"
-
-    if cunit is u.arcsec:
-        cdelt = 0.2
-    elif cunit is u.angstrom:
-        cdelt = 1.25
-        ctype = 'AWAV'
-    else:
-        cunit = u.Unit('pixel')
-        cdelt = 1.
-
-    # make essential keywords in case the header is minimal
-    # we're assuming `crpix` and `crval` to be at the origin for simplicity
-    hdr_keys = {
-        'CRPIX' : 1.,
-        'CRVAL' : 0.,
-        'CDELT' : cdelt,
-        'CUNIT' : cunit.to_string('fits'),
-        'CTYPE' : ctype
-    }
-
-    # if the important keywords are not in the header, add them
-    # again this is for a simple 1D case! we aren't handling n > 1.
-    n = hdu['NAXIS']
-
-    for key, val in hdr_keys.items():
-        if f'{key}{n}' not in hdu:
-            hdu.set(f'{key}{n}', val)
-
-    return hdu
-
-
 def is_notebook():
     """
     Are we in a jupyter notebook?
