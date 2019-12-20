@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 
 from .data import Data2D
-from .world import World
+from .world import Position, VelWave
 from .plotter import (ImPlotter, get_plot_norm, get_plot_extent,
                       get_background_rms, get_contour_levels)
 
@@ -52,7 +52,7 @@ class PVSlice(Data2D):
         out : `telassar.PVSlice` object
         '''
 
-        if self.world.spectral_unit is None:
+        if self.velwave.unit is None:
             raise ValueError("We need coordinates along the spectral direction")
 
         if vmax is None:
@@ -63,8 +63,8 @@ class PVSlice(Data2D):
             pmax = min(self.shape[1], int(vmax + 0.5))
 
         else:
-            pmin = max(0, self.world.wav2pix(vmin, nearest=True))
-            pmax = min(self.shape[1], self.world.wav2pix(vmax, nearest = True) + 1)
+            pmin = max(0, self.velwave.wav2pix(vmin, nearest=True))
+            pmax = min(self.shape[1], self.velwave.wav2pix(vmax, nearest = True) + 1)
 
         return self[:, pmin:pmax]
 
@@ -89,7 +89,7 @@ class PVSlice(Data2D):
         out : `telassar.PVSlice` obj
         '''
 
-        if self.world.spatial_unit is None:
+        if self.position.unit is None:
             raise ValueError("We need coordinates along the spatial direction")
 
         if amax is None:
@@ -100,13 +100,13 @@ class PVSlice(Data2D):
             pmax = min(self.shape[0], int(amax + 0.5))
 
         else:
-            pmin = max(0, self.world.offset2pix(amin, nearest=True))
+            pmin = max(0, self.position.offset2pix(amin, nearest=True))
             #print(pmin)
-            pmax = min(self.shape[0], self.world.offset2pix(amax, nearest = True) + 1)
+            pmax = min(self.shape[0], self.position.offset2pix(amax, nearest = True) + 1)
             #print(pmax)
 
         return self[pmin:pmax, :]
-        
+
     def spatial_profile(self, wave, arc, unit1 = None, unit2 = None):
 
         if len(arc) != 2 or len(wave) !=2:
@@ -117,22 +117,22 @@ class PVSlice(Data2D):
             pmin = max(0, int(arc[0] + 0.5))
             pmax = min(self.shape[0], int(arc[1] + 0.5))
         else:
-            pmin = max(0, self.world.offset2pix(arc[0], nearest=True))
-            pmax = min(self.shape[0], self.world.offset2pix(arc[1], nearest=True))
+            pmin = max(0, self.position.offset2pix(arc[0], nearest=True))
+            pmax = min(self.shape[0], self.position.offset2pix(arc[1], nearest=True))
 
         if unit2 is None:
             lmin = max(0, int(wave[0] + 0.5))
             lmax = min(self.shape[1], int(wave[1] + 0.5))
         else:
-            lmin = max(0, self.world.wav2pix(wave[0], nearest=True))
-            lmax = min(self.shape[1], self.world.wav2pix(wave[1], nearest=True))
+            lmin = max(0, self.velwave.wav2pix(wave[0], nearest=True))
+            lmax = min(self.shape[1], self.velwave.wav2pix(wave[1], nearest=True))
 
 
         sx = slice(pmin, pmax)
         sy = slice(lmin, lmax)
 
-        res = np.sum(self._data[sx, sy], axis=1)
-
+        #res = np.sum(self._data[sx, sy], axis=1)
+        res = self.data[sx, sy].sum(axis=1)
         return res
 
     def plot(self, scale = 'linear', ax = None, ax_kws = None, imshow_kws = None,
