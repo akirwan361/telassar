@@ -6,159 +6,496 @@ import numpy as np
 
 import logging
 
-def wcs_from_cube_header(hdr):
+def get_cdelt_from_cd(mywcs):
 
-    '''
-    Install coordinates for the data. This will have one spatial axis and
-    one spectral axis
-    '''
-    # Don't convert units
+    # if there's a cd, get it
+    try:
+        cd = mywcs.wcs.cd
+    except AttributeError:
+        print("Error: No cd is present")
+        #return
+
+    dy = np.sqrt(cd[0,1]**2 + cd[1,1]**2)
+    #dz = np.sqrt()
+    # convert to arcseconds
+    cdelt = np.round((dy * u.deg).to(u.arcsec).value, 1)
+
+    return cdelt
+
+
+def wcs_from_header(header):
+
+    hdr = header.copy()
+
+    cunit = None
     if 'CUNIT3' in hdr:
-        unit = u.Unit(hdr.pop('CUNIT3'))
+        cunit = u.Unit(hdr.pop('CUNIT3'))
+    else:
+        cunit = u.Unit('angstrom')
 
     try:
-        naxis = hdr['NAXIS']
+        n = hdr['NAXIS']
     except KeyError:
-        naxis = hdr['WCSAXES']
+        n = hdr['WCSAXES']
 
+    # generate WCS object
+    mywcs = pywcs(hdr, fix=False)
+    old_shape = mywcs.pixel_shape
 
-    # generate a WCS object
-    mywcs = pywcs(hdr, fix = False)
+    if mywcs.wcs.has_cd():
+        cdelt = get_cdelt_from_cd(mywcs)
+        #cdelt2 = mywcs.wcs.cd[2,2]
+    elif mywcs.wcs.cdelt[0] == 0.2:
+        cdelt = 0.2
+        #cdelt2 = mywcs.wcs.cdelt[1]
+    elif mywcs.wcs.cdelt[1] == 0.2:
+        cdelt = 0.2
+        #cdelt2 = mywcs.wcs.cdelt[0]
 
-    # Figure out the spatial limits
-    # get the full extent of the data
-    nx, ny = mywcs.pixel_shape[:2]
-    #print(nx, ny)
+    crval = None
+    #if cunit is None:
+    # is the header from a cube?
+    if n==3:
+        nx, ny = old_shape[:2]
+        xc, yc = mywcs.wcs.crpix[:2]
+        new_wcs = mywcs.sub([0, WCSSUB_SPECTRAL])
+        new_wcs.pixel_shape = old_shape[1:]
+        crval = 0. # this is arcsec, so we want center at 0
 
-    # ideally, crpix should be our centers
-    # TODO: add option to pass a center
-    xc, yc = mywcs.wcs.crpix[:2]
+    # if this is a header from a pvslice check axes
+    if n==2:
+        if mywcs.wcs.cdelt[0] == 0.2:
+            new_wcs = mywcs.copy()
+        elif mywcs.wcs.cdelt[1] == 0.2:
+            new_wcs = mywcs.swapaxes(0,1)
+            # TODO: figure out why this is different
+            # on laptop and desktop! temp workaround:
+            if new_wcs.pixel_shape == old_shape:
+                new_wcs.pixel_shape = new_wcs.pixel_shape[::-1]
+        yc = hdr['CRPIX1']
+        #crval = hdr['CRVAL1']
 
-    # make new WCS object with Spatial and Wavelength axes
-    # `wcs.sub()` sets naxis1 to None, so make sure it has
-    # the same pixel shape as the parent data
-    new_wcs = mywcs.sub([0, WCSSUB_SPECTRAL])
-    new_wcs.pixel_shape = mywcs.pixel_shape[1:]
-
-    # get cdelt from CD
-    cd = mywcs.wcs.cd
-    dy = np.sqrt(cd[0, 1]**2 + cd[1, 1]**2)
-
-    # get dy in arcseconds
-    dy = np.round((dy * u.deg).to(u.arcsec).value, 1)
-    cdelt1 = dy
-    cdelt2 = cd[2, 2]
-
-    # if the WCS header is taken from a cube or a 2D spatial image,
-    # get rid of the CD parameter so astropy won't ignore a cdelt value
     if new_wcs.wcs.has_cd():
         del new_wcs.wcs.cd
 
-    # set the WCS info
+    # set the basic wcs info
     new_wcs.wcs.crpix[0] = yc
-    new_wcs.wcs.cdelt[0] = cdelt1
-    new_wcs.wcs.cdelt[1] = cdelt2
-    new_wcs.wcs.crval[0] = 0. # this is arcsec, so we want the center at 0
     new_wcs.wcs.ctype[0] = 'OFFSET'
-    new_wcs.wcs.cunit[0] = u.Unit('arcsec')#.to_string('fits')
-    #new_wcs.wcs.cunit[1] = u.Unit(unit)#.to_string('fits')
-    #new_wcs.wcs.set()
-    try:
-        new_wcs.wcs.pc[1,0] = new_wcs.wcs.pc[0,1] = 0
-    except AttributeError:
-        pass
-    new_wcs.wcs.set()
-    return new_wcs
+    new_wcs.wcs.cunit[0] = u.Unit('arcsec')
 
-def wcs_from_pv_header(hdr):
-    '''
-    This is mostly for dealing with the Ellerbroek data
-    '''
-    # Create a WCS object
-    mywcs = pywcs(hdr, fix = False)
-    old_pxshape = mywcs.pixel_shape
+    # set the more specific info
+    if cdelt is not None:
+        new_wcs.wcs.cdelt[0] = cdelt
 
-    # Make sure the WCS info is in [spatial, spectral]
-    # order
-    if mywcs.wcs.cdelt[0] == 0.2:
-        pass
-    elif mywcs.wcs.cdelt[1] == 0.2:
-        mywcs = mywcs.swapaxes(0,1)
-        # TODO: figure out why this is different
-        # on laptop and desktop! temp workaround:
-        if mywcs.pixel_shape == old_pxshape:
-            mywcs.pixel_shape = mywcs.pixel_shape[::-1]
+    if crval is not None:
+        new_wcs.wcs.crval[0] = crval
 
     # Is this velocity or wavelength?
-    if mywcs.wcs.crval[1] < 0.:
-        ctype2 = 'VELO'
-        cunit2 = u.Unit('km/s').to_string('fits')
+    if new_wcs.wcs.crval[1] < 0.:
+        new_wcs.wcs.ctype[1] = 'VELO'
     else:
-        ctype2 = 'AWAV'
-        cunit2 = u.Unit('nm').to_string('fits')
+        new_wcs.wcs.ctype[1] = 'AWAV'
 
-    ctype1 = 'OFFSET'
-    cunit1 = u.Unit('arcsec').to_string('fits')
-    crpix1 = hdr['CRPIX1']
+    return new_wcs
 
-    mywcs.wcs.crpix = [crpix1, 1.]
-    mywcs.wcs.ctype = [ctype1, ctype2]
-    #mywcs.wcs.cunit = [cunit1, cunit2]
+class Position:
 
-    return mywcs
-
-class World:
-
-    def __init__(self, hdr = None, crpix = [1., 1.], crval = [1.,1.], cdelt = [1., 1.],
-                 unit1 = u.arcsec, unit2 = u.dimensionless_unscaled,
-                 ctype = ['LINEAR', 'AWAV'], shape = None):
+    def __init__(self, hdr = None, crpix = 1., crval = 1., cdelt = 0.2,
+                 unit = u.arcsec, ctype = 'LINEAR', shape = None):
 
         self._logger = logging.getLogger(__name__)
 
-        unit1 = u.Unit(unit1).to_string('fits')
-        unit2 = u.Unit(unit2)
+        unit = u.Unit(unit).to_string('fits')
 
         self.shape = shape
 
-        #if mode is not None:
-        #    print(self.unit)
         if (hdr is not None):
             h = hdr.copy()
-            #print(h)
-            n = h['NAXIS'] or h['WCSAXES']
-            self.shape = h['NAXIS%d' % n]
-            if n == 3:
-                self.wcs = wcs_from_cube_header(h)
-            elif n == 2:
-                self.wcs = wcs_from_pv_header(h)
+
+            # the spatial axis should be axis=1
+            axis = 1
+            self.wcs = wcs_from_header(h).sub([axis])
 
             if self.wcs.wcs.cunit[0] != '':
-                self.spatial_unit = self.wcs.wcs.cunit[0]
+                self.unit = self.wcs.wcs.cunit[0]
             elif self.wcs.wcs.ctype[0] == 'OFFSET':
-                self.spatial_unit = u.Unit('arcsec')
-            #print(self.wcs.wcs.cunit[1])
-            if self.wcs.wcs.cunit[1] == 'm' or (self.wcs.wcs.ctype[1] == 'AWAV'):
-                self.spectral_unit = u.Unit('angstrom')
-            elif (self.wcs.wcs.cunit[1] == u.Unit('km/s')) or (self.wcs.wcs.ctype[1] == 'VELO'):
-                self.spectral_unit = u.Unit('km/s')
+                self.unit = u.Unit('arcsec')
 
         elif hdr is None:
             #if data is not None:
-            self.spatial_unit = u.Unit(unit1)
-            self.spectral_unit = u.Unit(unit2)
-            self.wcs = pywcs(naxis = 2)
+            self.unit = u.Unit(unit)
+            self.wcs = pywcs(naxis = 1)
             #self.shape =
 
             # set the reference pixel
-            self.wcs.wcs.crval = np.array([crval[0], crval[1]])
-            self.wcs.wcs.ctype =[ctype[0], ctype[1]]
-            self.wcs.wcs.cdelt = np.array([cdelt[0], cdelt[1]])
-            self.wcs.wcs.crpix = np.array([crpix[0], crpix[1]])
-            self.wcs.pixel_shape = shape
+            self.wcs.wcs.crval[0] = crval
+            self.wcs.wcs.ctype[0] = ctype
+            self.wcs.wcs.cdelt[0] = cdelt
+            self.wcs.wcs.crpix[0] = crpix
+            self.wcs.pixel_shape = (shape,)
             #self.wcs.wcs.cunit = [unit1, unit2]
 
         #self.wcs.wcs.set()
-        self.shape = self.wcs.pixel_shape if shape is None else shape
+        self.shape = self.wcs.pixel_shape[0] if shape is None else shape
+
+    def copy(self):
+        """
+        Copy the Position object
+        """
+        out = Position(shape=self.shape, unit=self.unit)
+        out.wcs = self.wcs.deepcopy()
+        return out
+
+    def __repr__(self):
+        return repr(self.wcs)
+
+    def info(self, unit = None):
+        try:
+            unit = unit or self.unit
+            start = self.get_start(unit=unit)
+            step = self.get_step(unit=unit)
+            type = self.wcs.wcs.ctype[0].capitalize()
+
+            if self.shape is None:
+                #self._logger.info(f'Spatial {type}: min: {start:0.2f} step: \
+                #                   {step:0.3f}"')
+                self._logger.info('Spatial %s: min: %0.2f" step: %0.3f"' %
+                                 (type, start, step))
+            else:
+                end = self.get_stop(unit=unit)
+                #self._logger.info(f'Spatial {type}: min {start:0.2f} max: {end:0.2f} \
+                #                   step: {step:0.3f}"')
+                self._logger.info('Spatial %s: min: %0.1f" max: %0.1f" step: %0.3f"' %
+                                 (type, start, end, step))
+        except Exception as e:
+            print(e)
+            self._logger.info("something happened I can't fix yet")
+
+    def __getitem__(self, item):
+
+        if item is None:
+            return self
+
+        elif isinstance(item, int):
+            if item >=0:
+                arc = self.pix2offset(pix=item)
+            else:
+                if self.shape is None:
+                    raise ValueError("Can't return an index without a shape")
+                else:
+                    arc = self.pix2offset(pix = self.shape + item)
+            return Position(crpix=1., crval = arc, cdelt=0., unit=self.unit,
+                            ctype = self.wcs.wcs.ctype[0], shape=1)
+
+        elif isinstance(item, slice):
+            if item.start is None:
+                start = 0
+            elif item.start >=0:
+                start = item.start
+            else:
+                if self.shape is None:
+                    raise ValueError("Can't return an index without a shape")
+                else:
+                    start = self.shape + item.start
+            if item.stop is None:
+                if self.shape is None:
+                    raise ValueError("Can't return an index without a shape")
+                else:
+                    stop = self.shape
+            elif item.stop >=0:
+                stop = item.stop
+            else:
+                if self.shape is None:
+                    raise ValueError("Can't return an index without a shape")
+                else:
+                    stop = self.shape + item.stop
+            newarc = self.pix2offset(pix=np.arange(start, stop, item.step))
+            dimens = newarc.shape[0]
+
+            if dimens < 2:
+                raise ValueError("Offset with dimension < 2")
+            cdelt = newarc[1] - newarc[0]
+            return Position(crpix = 1., crval = newarc[0], cdelt = cdelt,
+                            unit = self.unit, ctype = self.wcs.wcs.ctype[0],
+                            shape = dimens)
+        else:
+            raise ValueError("Can't do it!")
+
+    def offset2pix(self, val, nearest = False):
+        """
+        Return a pixel value if given an offset value in
+        arcseconds
+        """
+        x = np.atleast_1d(val)
+
+        # tell world2pix to make 0-relative array coordinates
+        pix = self.wcs.wcs_world2pix(x, 0)[0]
+
+        if nearest:
+            pix = (pix + 0.5).astype(int)
+            np.maximum(pix, 0, out = pix)
+            if self.shape is not None:
+                np.minimum(pix, self.shape-1, out = pix)
+        return pix[0] if np.isscalar(val) else pix
+
+    def pix2offset(self, pix = None, unit = None):
+        """
+        Reverse of above: get spatial value of pixel
+        """
+
+        if pix is None:
+            pixarr = np.arange(self.shape, dtype = float)
+        else:
+            pixarr = np.atleast_1d(pix)
+
+        res = self.wcs.wcs_pix2world(pixarr, 0)[0]
+
+        if unit is not None:
+            res = (res * self.unit).to(unit).value
+
+        return res[0] if np.isscalar(pix) else res
+
+
+    def get_step(self, unit = None):
+        '''
+        get the step
+        '''
+        if self.wcs.wcs.has_cd():
+            step = self.wcs.wcs.cd[0]
+        else:
+            cdelt = self.wcs.wcs.get_cdelt()[0]
+            pc = self.wcs.wcs.get_pc()[0][0]
+            step = cdelt * pc
+
+        if unit is not None:
+            step = (step * self.unit).to(unit).value
+        return step
+
+    def set_step(self, x, unit = None):
+        """
+        If you want to change the step, do it here;
+        useful if you've read in an array and now have minimal header data
+        """
+
+        if unit is not None:
+            step = (x * unit).to(self.unit).value
+        else:
+            step = x
+
+        # TODO: probably won't have any CD info for 1D files
+        # so maybe just ignore this?
+        if self.wcs.wcs.has_cd():
+            self.wcs.wcs.cd[0][0] = step
+        else:
+            pc = self.wcs.wcs.get_pc()[0][0]
+            self.wcs.wcs.cdelt[0] = step / pc
+
+    def get_start(self, unit = None):
+        """
+        Get the starting pixel value
+        """
+
+        return self.pix2offset(0)
+
+
+    def get_stop(self, unit = None):
+
+        if self.shape is None:
+            raise IOError("Need a dimension!")
+        else:
+            return self.pix2offset(self.shape - 1)
+
+
+class VelWave:
+
+    def __init__(self, hdr = None, crpix = 1., crval = 1., cdelt = 1.,
+                 unit = u.angstrom, ctype = 'LINEAR', shape = None):
+
+        self._logger = logging.getLogger(__name__)
+
+        unit = u.Unit(unit)#.to_string('fits')
+
+        self.shape = shape
+
+        if (hdr is not None):
+            h = hdr.copy()
+
+            # the spectral axis should be 2
+            axis = 2
+            self.wcs = wcs_from_header(h).sub([axis])
+
+            #if self.wcs.wcs.cunit[0] != '':
+            #    self.unit = self.wcs.wcs.cunit[0]
+            if self.wcs.wcs.ctype[0] == 'VELO':
+                self.unit = u.Unit('km/s')
+            elif self.wcs.wcs.ctype[0] == 'AWAV' or 'WAVE':
+                self.unit = unit
+
+        elif hdr is None:
+            #if data is not None:
+            self.unit = u.Unit(unit)
+            self.wcs = pywcs(naxis = 1)
+            #self.shape =
+
+            # set the reference pixel
+            self.wcs.wcs.crval[0] = crval
+            self.wcs.wcs.ctype[0] = ctype
+            self.wcs.wcs.cdelt[0] = cdelt
+            self.wcs.wcs.crpix[0] = crpix
+            # this is weird but go with it
+            self.wcs.pixel_shape = (shape,)
+
+        #self.wcs.wcs.set()
+        self.shape = self.wcs.pixel_shape[0] if shape is None else shape
+
+    def __repr__(self):
+        return(repr(self.wcs))
+
+    def info(self, unit = None):
+
+        unit = unit or self.unit
+        #unit = str(unit).replace(' ', '')
+        start = self.get_start(unit=unit)
+        step = self.get_step(unit=unit)
+        type = self.wcs.wcs.ctype[0].capitalize()
+
+        if self.shape is None:
+            unit = str(unit).replace(' ', '')
+            self._logger.info('Spatial extent: min: %0.2f %s step: %0.3f %s' %
+                             (start, unit, step,  unit))
+        else:
+            end = self.get_stop(unit=unit)
+            unit = str(unit).replace(' ', '')
+            self._logger.info('Spatial extent: min %0.2f %s max: %0.2f %s step: %0.3f %s' %
+                             (start, unit, end, unit, step, unit))
+
+    def __getitem__(self, item):
+
+        if item is None:
+            return self
+
+        elif isinstance(item, int):
+            if item >=0:
+                val = self.pix2wav(pix=item)
+            else:
+                if self.shape is None:
+                    raise ValueError("Can't return an index without a shape")
+                else:
+                    val = self.pix2wav(pix = self.shape + item)
+            return Position(crpix=1., crval = val, cdelt=0., unit=self.unit,
+                            ctype = self.wcs.wcs.ctype[0], shape=1)
+
+        elif isinstance(item, slice):
+            if item.start is None:
+                start = 0
+            elif item.start >=0:
+                start = item.start
+            else:
+                if self.shape is None:
+                    raise ValueError("Can't return an index without a shape")
+                else:
+                    start = self.shape + item.start
+            if item.stop is None:
+                if self.shape is None:
+                    raise ValueError("Can't return an index without a shape")
+                else:
+                    stop = self.shape
+            elif item.stop >=0:
+                stop = item.stop
+            else:
+                if self.shape is None:
+                    raise ValueError("Can't return an index without a shape")
+                else:
+                    stop = self.shape + item.stop
+            newval = self.pix2wav(pix=np.arange(start, stop, item.step))
+            dimens = newval.shape[0]
+
+            if dimens < 2:
+                raise ValueError("Velocity/Wavelength with dimension < 2")
+            cdelt = newval[1] - newval[0]
+            return VelWave(crpix = 1., crval = newval[0], cdelt = cdelt,
+                            unit = self.unit, ctype = self.wcs.wcs.ctype[0],
+                            shape = dimens)
+        else:
+            raise ValueError("Can't do it!")
+
+    def wav2pix(self, val, nearest = False):
+        """
+        Return a pixel value if given an offset value in
+        arcseconds
+        """
+        x = np.atleast_1d(val)
+
+        # tell world2pix to make 0-relative array coordinates
+        pix = self.wcs.wcs_world2pix(x, 0)[0]
+
+        if nearest:
+            pix = (pix + 0.5).astype(int)
+            np.maximum(pix, 0, out = pix)
+            if self.shape is not None:
+                np.minimum(pix, self.shape-1, out = pix)
+        return pix[0] if np.isscalar(val) else pix
+
+    def pix2wav(self, pix=None, unit = None):
+
+        if pix is None:
+            pixarr = np.arange(self.shape, dtype = float)
+        else:
+            pixarr = np.atleast_1d(pix)
+
+        res = self.wcs.wcs_pix2world(pixarr, 0)[0]
+
+        if unit is not None:
+            res = (res * self.unit).to(unit).value
+
+        return res[0] if np.isscalar(pix) else res
+
+    def get_start(self, unit = None):
+        return self.pix2wav(0)
+
+    def get_stop(self, unit = None):
+
+        if self.shape is None:
+            raise IOError("Need a dimension!")
+        else:
+            return self.pix2wav(self.shape - 1)
+
+    def get_step(self, unit = None):
+        '''
+        get the step
+        '''
+        if self.wcs.wcs.has_cd():
+            step = self.wcs.wcs.cd[0]
+        else:
+            cdelt = self.wcs.wcs.get_cdelt()[0]
+            pc = self.wcs.wcs.get_pc()[0][0]
+            step = cdelt * pc
+
+        if unit is not None:
+            step = (step * self.unit).to(unit).value
+        return step
+
+    def set_step(self, x, unit = None):
+        """
+        If you want to change the step, do it here;
+        useful if you've read in an array and now have minimal header data
+        """
+
+        if unit is not None:
+            step = (x * unit).to(self.unit).value
+        else:
+            step = x
+
+        # TODO: probably won't have any CD info for 1D files
+        # so maybe just ignore this?
+        if self.wcs.wcs.has_cd():
+            self.wcs.wcs.cd[0][0] = step
+        else:
+            pc = self.wcs.wcs.get_pc()[0][0]
+            self.wcs.wcs.cdelt[0] = step / pc
+
+
+"""
 
     @property
     def naxis(self):
@@ -274,22 +611,6 @@ class World:
             print('Exception')
             self._logger.info("something happened I can't fix yet")
 
-    def offset2pix(self, val, nearest = False):
-        """
-        Return a pixel value if given an offset value in
-        arcseconds
-        """
-        x = np.atleast_1d(val)
-
-        # tell world2pix to make 0-relative array coordinates
-        pix = self.wcs.wcs_world2pix(x, 0, 0)[0]
-
-        if nearest:
-            pix = (pix + 0.5).astype(int)
-            np.maximum(pix, 0, out = pix)
-            if self.shape is not None:
-                np.minimum(pix, self.shape[0]-1, out = pix)
-        return pix[0] if np.isscalar(val) else pix
 
     def wav2pix(self, val, nearest = False):
         '''
@@ -308,23 +629,6 @@ class World:
                 np.minimum(pix, self.shape[1]-1, out=pix)
         return pix[0] if np.isscalar(val) else pix
 
-    def pix2offset(self, pix = None, unit = None):
-        """
-        Reverse of above: get spatial value of pixel
-        """
-
-        if pix is None:
-            pixarr = np.arange(self.shape[0], dtype = float)
-        else:
-            pixarr = np.atleast_1d(pix)
-
-        res = self.wcs.wcs_pix2world(pixarr, 0, 0)[0]
-
-        if unit is not None:
-            res = (res * self.spatial_unit).to(unit).value
-
-        return res[0] if np.isscalar(pix) else res
-
     def pix2wav(self, pix = None, unit = None):
         '''
         Get spectral value of pixel
@@ -341,20 +645,6 @@ class World:
 
         return res[0] if np.isscalar(pix) else res
 
-    def get_spatial_step(self, unit = None):
-        '''
-        get the step
-        '''
-        if self.wcs.wcs.has_cd():
-            step = self.wcs.wcs.cd[0]
-        else:
-            cdelt = self.wcs.wcs.get_cdelt()[0]
-            pc = self.wcs.wcs.get_pc()[0][0]
-            step = cdelt * pc
-
-        if unit is not None:
-            step = (step * self.spatial_unit).to(unit).value
-        return step
 
     def get_spectral_step(self, unit = None):
         if self.wcs.wcs.has_cd():
@@ -371,10 +661,10 @@ class World:
 
 
     def set_spatial_step(self, x, unit = None):
-        """
+        '''
         If you want to change the step, do it here;
         useful if you've read in an array and now have minimal header data
-        """
+        '''
 
         if unit is not None:
             step = (x * unit).to(self.spatial_unit).value
@@ -410,22 +700,8 @@ class World:
 
         self.wcs.wcs.set()
 
-    def get_spatial_start(self, unit = None):
-        """
-        Get the starting pixel value
-        """
-
-        return self.pix2offset(0)
-
     def get_spectral_start(self, unit = None):
         return self.pix2wav(0)
-
-    def get_spatial_end(self, unit = None):
-
-        if self.shape is None:
-            raise IOError("Need a dimension!")
-        else:
-            return self.pix2offset(self.shape[0] - 1)
 
     def get_spectral_end(self, unit = None):
 
@@ -433,3 +709,4 @@ class World:
             raise IOError("Need a dimension!")
         else:
             return self.pix2wav(self.shape[1]-1)
+"""
