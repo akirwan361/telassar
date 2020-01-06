@@ -7,10 +7,11 @@ import logging
 
 from .world import Position, VelWave
 
-class Data2D:
+class DataND:
 
     def __init__(self, filename = None, data = None, mask = False, dtype = None,
-                 ext = None, header = None, unit = None, wcs = None, spec=None):
+                 ext = None, header = None, unit = None, wcs = None, spec=None,
+                 **kwargs):
 
         #hdul = None
         #logging.basicConfig(level=logging.DEBUG)
@@ -21,7 +22,7 @@ class Data2D:
         self.ext = ext
         self._data = data
         self._dtype = dtype
-        self.header = header or fits.Header()
+        self.header = header or None#fits.Header()
         #self.unit = u.Unit(unit)
         self.position = None
         self.velwave = None
@@ -30,22 +31,27 @@ class Data2D:
         if (filename is not None) and (data is None):
             # read in a fits file
             hdul = fits.open(filename)
+
             if len(hdul) == 1:
                 self.ext = 0
             elif isinstance(ext, int):
                 self.ext = ext
+
             hdr = hdul[self.ext].header
-            self.header = hdr #format_header(hdr=hdr, mode=mode)
+            self.header = hdr
             self._data = hdul[self.ext].data
+
             if 'BUNIT' in self.header:
                 self.flux_unit = u.Unit(self.header['BUNIT'])
             else:
                 self.flux_unit = u.dimensionless_unscaled
+
             self._mask = ~(np.isfinite(self._data))
             self.position = Position(self.header)
             self.velwave = VelWave(self.header)
 
         else:
+            #print("Data else block")
             if mask is ma.nomask:
                 self._mask = mask
 
@@ -72,18 +78,21 @@ class Data2D:
                         self._mask = np.array(mask, dtype = bool, copy = True)
 
             self.flux_unit = u.Unit(u.dimensionless_unscaled)
-            if wcs is not None:
+
+            # commenting out for now: try the `set_coords` method and
+            # see what troubleshooting needs doing
+            '''if wcs is not None:
                 self.position = wcs
             else:
                 self.position = Position(self.header)
+
             if spec is not None:
                 self.velwave = spec
             else:
                 self.velwave = VelWave(self.header)
-
-            #TODO: fix a header for objects initialized from data?
-            #self.header = self.world.wcs.to_header()
-            #self.world = World(self.header)
+            '''
+        self.set_coords(wcs = kwargs.pop('wcs', None),
+                        velwave = kwargs.pop('velwave', None))
 
     @property
     def data(self):
@@ -180,8 +189,8 @@ class Data2D:
             self.filename or 'no name')
 
         data = ('no data' if self._data is None else f'.data({shape_str})')
-        spec_unit = str(self.position.unit) or 'no unit'
-        spat_unit = str(self.velwave.unit) or 'no unit'
+        spec_unit = str(self.position.unit) if self.position is not None else 'no unit'
+        spat_unit = str(self.velwave.unit) if self.velwave is not None else 'no unit'
 
         log('%s (%s %s)', data, spat_unit, spec_unit.replace(' ', ''))
         #print('%s (%s,  %s)' % (data, spat_unit, spec_unit))
@@ -290,3 +299,50 @@ class Data2D:
         '''
         res = ma.max(self.data)
         return res
+
+    def set_coords(self, wcs = None, velwave = None):
+        """
+        Set the wcs info for the object. Hopefully this sorts the issue
+        of reducing 2D PV data to 1D spatial/spectral data?
+        """
+
+        #print("going to set_coords")
+        if self.header is not None:
+            hdr = self.header.copy()
+        else:
+            hdr = None
+        # Install PV coordinates.
+        if len(self.shape) > 1:
+            try:
+                if hdr is not None:
+                    self.position = Position(hdr)
+                    self.velwave = VelWave(hdr)
+                elif hdr is None and (wcs is not None and velwave is not None):
+                    self.position = wcs.copy()
+                    self.velwave = velwave.copy()
+            except Exception:
+                self._logger.warning("Unable to install coordinates",
+                                     exc_info=True)
+                self.position = None
+                self.velwave = None
+
+        # If the data is 1D, sort out which is which
+        if len(self.shape) != 2:
+            try:
+                if hdr is not None:
+                    self.position = Position(hdr)
+                elif hdr is None and wcs is not None:
+                    self.position = wcs.copy()
+            except Exception:
+                self._logger.warning("Unable to install spatial "
+                                     "coordinates", exc_info=True)
+                self.position = None
+            try:
+                if hdr is not None:
+                    self.velwave = VelWave(hdr)
+                elif hdr is None and velwave is not None:
+                    self.velwave = velwave.copy()
+            except Exception:
+                self._logger.warning("Unable to install spectral "
+                                     "coordinates", exc_info=True)
+                self.velwave = None

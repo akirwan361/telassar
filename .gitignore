@@ -5,8 +5,7 @@ __pycache__/
 /bin
 /etc
 /include
-/lib
-/lib64
+/lib*
 /share
 pyvenv.cfg
 

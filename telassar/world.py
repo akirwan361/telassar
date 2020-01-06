@@ -36,7 +36,11 @@ def wcs_from_header(header):
     try:
         n = hdr['NAXIS']
     except KeyError:
-        n = hdr['WCSAXES']
+        try:
+            n = hdr['WCSAXES']
+        except KeyError:
+            print("Can't install coordinates!")
+            return
 
     # generate WCS object
     mywcs = pywcs(hdr, fix=False)

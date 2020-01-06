@@ -6,7 +6,7 @@ from lmfit import models
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 
-from .data import Data2D
+from .data import DataND
 from .world import Position, VelWave
 from .plotter import (ImPlotter, get_plot_norm, get_plot_extent,
                       get_background_rms, get_contour_levels)
@@ -26,12 +26,31 @@ lines = {
         'CaII7324': [7323.89, 'Angstrom', r'$[\mathrm{CaII}]\lambda 7324\AA$']
 }
 
-class PVSlice(Data2D):
+class PVSlice(DataND):
 
     '''
-    This is to just manage the 2d data shit, but it might
+    This is to just manage the data shit, but it might
     end up being completely superfluous. We'll find out.
     '''
+
+    def __getitem__(self, item):
+        """
+        Return an object:
+        pvslice[i, j] = value
+        pvslice[:, j] = spatial profile
+        pvslice[i, :] = spectral profile
+        pvslice[:, :] = sub-pvslice
+        """
+        obj = super(PVSlice, self).__getitem__(item)
+        if isinstance(obj, DataND):
+            if obj.ndim == 2:
+                return obj
+            elif obj.ndim == 1:
+                return
+        else:
+            return
+        
+
 
     def spectral_window(self, vmin, vmax=None, unit = None):
         '''
@@ -128,12 +147,12 @@ class PVSlice(Data2D):
             lmax = min(self.shape[1], self.velwave.wav2pix(wave[1], nearest=True))
 
 
-        sx = slice(pmin, pmax)
-        sy = slice(lmin, lmax)
+        sx = slice(pmin, pmax+1)
+        sy = slice(lmin, lmax+1)
 
-        #res = np.sum(self._data[sx, sy], axis=1)
         res = self.data[sx, sy].sum(axis=1)
-        return res
+        wcs = self.position[sx]
+        return res, wcs
 
     def plot(self, scale = 'linear', ax = None, ax_kws = None, imshow_kws = None,
              vmin = None, vmax = None, zscale = None, emline = None):
@@ -620,6 +639,13 @@ class PVSlice(Data2D):
         #     xlabel = xlab
         # ax.set_ylabel(ylabel)
         # ax.set_xlabel(xlabel)
+
+
+class LineProfile(DataND):
+
+    def __init__(self, *args):
+        # do something
+        return
 
 
 '''
