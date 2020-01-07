@@ -9,6 +9,9 @@ from .world import Position, VelWave
 
 class DataND:
 
+    # maybe this will help with sorting the 1D conditions?
+    _is_spectral = False
+    _is_spatial = False
     def __init__(self, filename = None, data = None, mask = False, dtype = None,
                  ext = None, header = None, unit = None, wcs = None, spec=None,
                  **kwargs):
@@ -189,8 +192,8 @@ class DataND:
             self.filename or 'no name')
 
         data = ('no data' if self._data is None else f'.data({shape_str})')
-        spec_unit = str(self.position.unit) if self.position is not None else 'no unit'
-        spat_unit = str(self.velwave.unit) if self.velwave is not None else 'no unit'
+        spat_unit = str(self.position.unit) if self.position is not None else 'no unit'
+        spec_unit = str(self.velwave.unit) if self.velwave is not None else 'no unit'
 
         log('%s (%s %s)', data, spat_unit, spec_unit.replace(' ', ''))
         #print('%s (%s,  %s)' % (data, spat_unit, spec_unit))
