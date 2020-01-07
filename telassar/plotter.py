@@ -20,8 +20,8 @@ class ImPlotter:
         # figure out if the image passed pixel units or data units
         if self.toggle_unit:
             # get the pixel values
-            col = im.world.wav2pix(x, nearest=True)
-            row = im.world.offset2pix(y, nearest= True)
+            col = im.velwave.wav2pix(x, nearest=True)
+            row = im.position.offset2pix(y, nearest= True)
             '''xc = x
             yc = y
             val = self.data[row, col]
@@ -35,12 +35,12 @@ class ImPlotter:
             col = int(x + 0.5)
             row = int(y + 0.5)
 
-        if (im.world is not None and row >=0 and row < im.shape[0] and
-                col >= 0 and col < im.shape[1]):
+        if (im.position is not None and im.velwave is not None and row >=0
+                and row < im.shape[0] and col >= 0 and col < im.shape[1]):
             #print(f'{val} is scalar')
 
-            xc = im.world.pix2wav(col, unit = im.world.spectral_unit)
-            yc = im.world.pix2offset(row, unit = im.world.spatial_unit)
+            xc = im.velwave.pix2wav(col, unit = im.velwave.unit)
+            yc = im.position.pix2offset(row, unit = im.position.unit)
             val = self.data[row, col]
 
             if np.isscalar(val):
@@ -73,15 +73,15 @@ def get_plot_norm(data, vmin = None, vmax = None, zscale = False, scale = 'linea
 
     return norm
 
-def get_plot_extent(wcs_obj):
+def get_plot_extent(wcs_obj, spec_obj):
 
     '''
     Assuming a `PVSlice.world` object is passed, get the extents for plotting
     '''
-    xmin = wcs_obj.get_spectral_start()-0.5
-    xmax = wcs_obj.get_spectral_end()+0.5
-    ymin = wcs_obj.get_spatial_start()-0.5
-    ymax = wcs_obj.get_spatial_end()+0.5
+    xmin = spec_obj.get_start()-0.5
+    xmax = spec_obj.get_stop()+0.5
+    ymin = wcs_obj.get_start()-0.5
+    ymax = wcs_obj.get_stop()+0.5
 
     return xmin, xmax, ymin, ymax
 
