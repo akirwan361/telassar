@@ -45,11 +45,14 @@ class PVSlice(DataND):
         if isinstance(obj, DataND):
             if obj.ndim == 2:
                 return obj
-            elif obj.ndim == 1:
-                return
+            elif obj.ndim == 1 and _is_spatial:
+                cls = SpatLine
+            elif obj.ndim == 1 and _is_spectral:
+                cls = SpecLine
+            return cls.new_object(obj)
         else:
-            return
-        
+            return obj
+
 
 
     def spectral_window(self, vmin, vmax=None, unit = None):
@@ -152,7 +155,7 @@ class PVSlice(DataND):
 
         res = self.data[sx, sy].sum(axis=1)
         wcs = self.position[sx]
-        return res, wcs
+        return SpatLine.new_object(self, data = res, wcs = wcs)
 
     def plot(self, scale = 'linear', ax = None, ax_kws = None, imshow_kws = None,
              vmin = None, vmax = None, zscale = None, emline = None):
@@ -278,17 +281,17 @@ class PVSlice(DataND):
 
         cmaps = colors if cmaps is None else cmaps
 
-        extent = get_plot_extent(self.world)
+        extent = get_plot_extent(self.position, self.velwave)
 
-        spectral_unit = u.Unit(self.world.spectral_unit).to_string('latex')
-        spatial_unit = u.Unit(self.world.spatial_unit).to_string('latex')
-        if self.world.wcs.wcs.ctype[0] == 'OFFSET':
+        spectral_unit = u.Unit(self.velwave.unit).to_string('latex')
+        spatial_unit = u.Unit(self.position.unit).to_string('latex')
+        if self.position.wcs.wcs.ctype[0] == 'OFFSET':
             y_type = rf'Offset'
         else:
             y_type = ''
-        if self.world.wcs.wcs.ctype[1] == 'VELO':
+        if self.velwave.wcs.wcs.ctype[0] == 'VELO':
             x_type = r'V$_{rad}$'
-        elif self.world.wcs.wcs.ctype[1] in ['WAVE', 'AWAV']:
+        elif self.velwave.wcs.wcs.ctype[0] in ['WAVE', 'AWAV']:
             x_type = r'$\lambda$'
         else:
             x_type = ''
@@ -639,29 +642,3 @@ class PVSlice(DataND):
         #     xlabel = xlab
         # ax.set_ylabel(ylabel)
         # ax.set_xlabel(xlabel)
-
-
-class LineProfile(DataND):
-
-    def __init__(self, *args):
-        # do something
-        return
-
-
-'''
-coords = []
-
-# define a function for handling click events
-# and saving the coordinates in the list
-def _on_click(event):
-
-    global ix, iy
-
-    if event.button == 1:
-        ix, iy = event.xdata, event.ydata
-        print(f'x = {ix}, y = {iy}')
-        coords.append((ix, iy))
-    elif event.button == 3:
-        fig.canvas.mpl_disconnect(cid)
-    return
-'''
