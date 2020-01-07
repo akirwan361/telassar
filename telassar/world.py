@@ -365,12 +365,12 @@ class VelWave:
 
         if self.shape is None:
             unit = str(unit).replace(' ', '')
-            self._logger.info('Spatial extent: min: %0.2f %s step: %0.3f %s' %
+            self._logger.info('Spectral extent: min: %0.2f %s step: %0.3f %s' %
                              (start, unit, step,  unit))
         else:
             end = self.get_stop(unit=unit)
             unit = str(unit).replace(' ', '')
-            self._logger.info('Spatial extent: min %0.2f %s max: %0.2f %s step: %0.3f %s' %
+            self._logger.info('Spectral extent: min %0.2f %s max: %0.2f %s step: %0.3f %s' %
                              (start, unit, end, unit, step, unit))
 
     def __getitem__(self, item):
