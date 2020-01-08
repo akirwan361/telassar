@@ -2,6 +2,7 @@ import numpy as np
 from astropy.io import fits
 from telassar import PVSlice
 import astropy.units as u
+import matplotlib.pyplot as plt
 
 def header():
     """Usage function"""
@@ -37,8 +38,13 @@ print("\nPrinting info for `xshoo_sii`: \n")
 xshoo_sii.info()
 print("")
 
-#if __name__ == '__main__':
-#    header()
-#    main()
-#else:
-#    pass
+show_plot = input("Show contour plots? [y/n] ")
+
+if show_plot.lower() == 'y':
+    #ax1 = show_contours(muse_sii)
+    #ax2 = show_contours(xshoo_sii)
+    ax1 = muse_sii.plot_contours(emline = 'SII6731')
+    ax2 = xshoo_sii.plot_contours(emline = 'SII6731')
+    plt.show()
+else:
+    pass
