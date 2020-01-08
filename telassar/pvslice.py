@@ -195,43 +195,43 @@ class PVSlice(DataND):
         if emline is not None:
             if emline in lines.keys():
                 emis = lines[emline][2]
-
-                #print(emis)
-        if ax is None:
-            #fig, ax = plt.subplots(subplot_kw = ax_kws)
-            fig, ax = plt.subplots(figsize = (5, 9), **ax_kws)
-            #ax = plt.gca()
-            #ax.grid(True)
+                ax_kws.update({'title': rf'{emis}'})
 
         # set the data and plot parameters
         res = self.copy()
         data = self.data.copy()
-        spectral_unit = u.Unit(self.world.spectral_unit).to_string('latex')
-        spatial_unit = u.Unit(self.world.spatial_unit).to_string('latex')
-        if self.world.wcs.wcs.ctype[0] == 'OFFSET':
+        spectral_unit = u.Unit(self.velwave.unit).to_string('latex')
+        spatial_unit = u.Unit(self.position.unit).to_string('latex')
+
+        if self.position.wcs.wcs.ctype[0] == 'OFFSET':
             y_type = rf'Offset'
         else:
             y_type = ''
-        if self.world.wcs.wcs.ctype[1] == 'VELO':
+        if self.velwave.wcs.wcs.ctype[0] == 'VELO':
             x_type = r'V$_{rad}$'
-        elif self.world.wcs.wcs.ctype[1] in ['WAVE', 'AWAV']:
+        elif self.velwave.wcs.wcs.ctype[0] in ['WAVE', 'AWAV']:
             x_type = r'$\lambda$'
         else:
             x_type = ''
+
+        ax_kws.update({'xlabel' : rf'{x_type} ({spectral_unit})',
+                       'ylabel' : rf'{y_type} ({spatial_unit})'})
+
+        if ax is None:
+            #fig, ax = plt.subplots(subplot_kw = ax_kws)
+            fig, ax = plt.subplots(figsize = (6, 9), subplot_kw = ax_kws)
+
+        # get a norm
         norm = get_plot_norm(data, vmin = vmin, vmax = vmax, zscale = zscale,
                              scale = scale)
-
-        extent = get_plot_extent(self.world)
+        # set the extent of the data
+        extent = get_plot_extent(self.position, self.velwave)
 
         ax.format_coord = ImPlotter(res, data)
         cax = ax.imshow(data, interpolation = 'nearest', origin = 'lower', norm =
                         norm, extent = extent,**imshow_kws) #extent = extent,
 
-        if 'title' not in ax_kws.items() and emis is not None:
-            ax.set_title(rf'{emis}')
-        #    ax.set_title(title)
-        ax.set_xlabel(rf'{x_type} ({spectral_unit})')
-        ax.set_ylabel(rf'{y_type} ({spatial_unit})')
+
         ax.margins(0.05)
         ax.xaxis.set_minor_locator(AutoMinorLocator())
         ax.yaxis.set_minor_locator(AutoMinorLocator())
@@ -241,11 +241,12 @@ class PVSlice(DataND):
         # format the coordinates
         toggle_unit = True if extent is not None else False
         ax.format_coord = ImPlotter(res, data, toggle_unit)
+        fig.subplots_adjust(left = 0.15, right = 0.85)
 
         return cax
 
     def plot_contours(self, sig = None, mask = None, levels1 = None, levels2 = None,
-                      cmaps = None):
+                      cmaps = None, ax_kws = None, fig_kws = None, emline = None):
         '''
         Generate a contour plot of the data. Useful for jet visualization!
 
@@ -264,8 +265,17 @@ class PVSlice(DataND):
             the second colormap to pass to `plt.contour`
         '''
 
-        from .tools import timeit
-        #from timeit import Timer
+        if ax_kws is None:
+            ax_kws = {}
+        if fig_kws is None:
+            fig_kws = {'figsize' : (6, 9)}
+
+        emis = None
+        if emline is not None:
+            if emline in lines.keys():
+                emis = lines[emline][2]
+                ax_kws.update({'title': rf'{emis}'})
+
         # default cmap colors
         colors = ['gist_gray', 'Oranges', 'gray']
         data = self.data.copy()
@@ -296,18 +306,16 @@ class PVSlice(DataND):
         else:
             x_type = ''
 
-        fig, ax = plt.subplots(figsize = (4, 9))
+        # testing this
+        ax_kws.update({'xlabel' : rf'{x_type} ({spectral_unit})',
+                       'ylabel' : rf'{y_type} ({spatial_unit})'})
+
+        fig, ax = plt.subplots(**fig_kws, subplot_kw = ax_kws)
         jet1 = ax.contour(data, levels=levels1, cmap=cmaps[0], extent=extent)
         jet2 = ax.contourf(data, levels=levels1, cmap=cmaps[1], extent=extent)
         bkgrd = ax.contourf(data, levels=levels2, cmap=cmaps[2], extent=extent,
                             alpha = 0.8)
 
-        #if 'title' not in ax_kws.items() and emis is not None:
-        #    ax.set_title(rf'{emis}')
-        #    ax.set_title(title)
-        ax.set_xlabel(rf'{x_type} ({spectral_unit})')
-
-        ax.set_ylabel(rf'{y_type} ({spatial_unit})', labelpad = 1)
         ax.margins(0.05)
         ax.xaxis.set_minor_locator(AutoMinorLocator())
         ax.yaxis.set_minor_locator(AutoMinorLocator())
@@ -318,9 +326,8 @@ class PVSlice(DataND):
         # format the coordinates
         toggle_unit = True if extent is not None else False
         ax.format_coord = ImPlotter(self, data, toggle_unit)
-        # make sure the labels aren't clipped?
-        fig.tight_layout()
-        #print(sig)
+        fig.subplots_adjust(left = 0.15, right = 0.85)
+
         return ax
 
     def moments(self, units = False):
