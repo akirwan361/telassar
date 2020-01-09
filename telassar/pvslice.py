@@ -8,6 +8,7 @@ from matplotlib.ticker import AutoMinorLocator
 
 from .data import DataND
 from .world import Position, VelWave
+from .spatial import SpatLine
 from .plotter import (ImPlotter, get_plot_norm, get_plot_extent,
                       get_background_rms, get_contour_levels)
 
@@ -155,7 +156,7 @@ class PVSlice(DataND):
 
         res = self.data[sx, sy].sum(axis=1)
         wcs = self.position[sx]
-        return SpatLine.new_object(self, data = res, wcs = wcs)
+        return SpatLine(data = res, wcs = wcs, unit = self.position.unit)
 
     def plot(self, scale = 'linear', ax = None, ax_kws = None, imshow_kws = None,
              vmin = None, vmax = None, zscale = None, emline = None):

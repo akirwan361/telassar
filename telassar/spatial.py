@@ -15,6 +15,6 @@ class SpatLine(DataND):
 
     _is_spatial = True
 
-    def __init__(self, *args):
-        # do something
-        return
+    def plot(self, vmin = None, vmax = None, fig_kws = None, ax_kws = None):
+
+        
