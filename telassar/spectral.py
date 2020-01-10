@@ -15,5 +15,4 @@ class SpecLine(DataND):
 
     _is_spectral = True
 
-    def __init__(self, *args):
-        return
+    

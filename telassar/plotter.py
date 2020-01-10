@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from .tools import timeit
 
 
-class ImPlotter:
+class ImCoords:
 
     def __init__(self, image, data, toggle_unit=False):
         self.image = image

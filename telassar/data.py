@@ -12,6 +12,7 @@ class DataND:
     # maybe this will help with sorting the 1D conditions?
     _is_spectral = False
     _is_spatial = False
+
     def __init__(self, filename = None, data = None, mask = False, dtype = None,
                  ext = None, header = None, unit = None, wcs = None, spec=None,
                  **kwargs):
@@ -169,12 +170,23 @@ class DataND:
         '''
         For pretty printing
         '''
-        fmt = """<{}(shape={}, spatial unit = '{}', spectral unit = '{}',
-            dtype = '{}')>"""
-        return fmt.format(self.__class__.__name__, self.shape,
-                          str(self.position.unit),
-                          str(self.velwave.unit).replace(' ', ''),
-                          self._dtype)
+        if len(self.shape) == 2:
+            fmt = """<{}(shape={}, spatial unit = '{}', spectral unit = '{}',
+                     dtype = '{}')>"""
+            return fmt.format(self.__class__.__name__, self.shape,
+                              str(self.position.unit),
+                              str(self.velwave.unit).replace(' ', ''),
+                              self._dtype)
+
+        elif len(self.shape) == 1 and self._is_spatial:
+            fmt = """<{}(shape={}, spatial unit = '{}', dtype = '{}')>"""
+            return fmt.format(self.__class__.__name__, self.shape,
+                              str(self.position.unit), self._dtype)
+        elif len(self.shape) == 1 and self._is_spectral:
+            fmt = """<{}(shape={}, spectral unit = '{}', dtype = '{}')>"""
+            return fmt.format(self.__class__.__name__, self.shape,
+                              str(self.velwave.unit).replace(' ', ''),
+                              self._dtype)
 
     def info(self):
 

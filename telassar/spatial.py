@@ -8,7 +8,7 @@ from matplotlib.ticker import AutoMinorLocator
 
 from .data import DataND
 from .world import Position, VelWave
-from .plotter import (ImPlotter, get_plot_norm, get_plot_extent,
+from .plotter import (ImCoords, get_plot_norm, get_plot_extent,
                       get_background_rms, get_contour_levels)
 
 class SpatLine(DataND):
@@ -16,5 +16,4 @@ class SpatLine(DataND):
     _is_spatial = True
 
     def plot(self, vmin = None, vmax = None, fig_kws = None, ax_kws = None):
-
-        
+        return

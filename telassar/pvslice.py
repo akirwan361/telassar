@@ -9,7 +9,8 @@ from matplotlib.ticker import AutoMinorLocator
 from .data import DataND
 from .world import Position, VelWave
 from .spatial import SpatLine
-from .plotter import (ImPlotter, get_plot_norm, get_plot_extent,
+from .spectral import SpecLine
+from .plotter import (ImCoords, get_plot_norm, get_plot_extent,
                       get_background_rms, get_contour_levels)
 
 # a running line list
@@ -130,25 +131,47 @@ class PVSlice(DataND):
 
         return self[pmin:pmax, :]
 
-    def spatial_profile(self, wave, arc, unit1 = None, unit2 = None):
+    def spatial_profile(self, arc, wave, spat_unit = False, spec_unit = False):
 
-        if len(arc) != 2 or len(wave) !=2:
+        """
+        Extract a 1D spatial profile from a position-velocity slice.
+
+        Parameters
+        -----------
+        arc : array-like
+            the region in distance from which to extract a profile
+        wave : array-like
+            the wavelength/velocity range over which to sum the profile
+        spat_unit : bool
+            toggles whether to use pixels or the native unit for distance;
+            default is False (uses pixel)
+        spec_unit : bool
+            toggles whether to use pixels or native unit for wavelength/velocity;
+            default is False (uses pixel)
+
+        Returns
+        -----------
+        out : `telassar.SpatLine` object
+        """
+
+        if (isinstance(arc, int) or isinstance(wave, int) or len(arc) != 2 or
+                len(wave) !=2):
             raise ValueError("Can't extract profile with only one point!")
 
         # get the spatial and spectral limits in pixel or arcseconds
-        if unit1 is None:
-            pmin = max(0, int(arc[0] + 0.5))
-            pmax = min(self.shape[0], int(arc[1] + 0.5))
-        else:
+        if spat_unit:
             pmin = max(0, self.position.offset2pix(arc[0], nearest=True))
             pmax = min(self.shape[0], self.position.offset2pix(arc[1], nearest=True))
-
-        if unit2 is None:
-            lmin = max(0, int(wave[0] + 0.5))
-            lmax = min(self.shape[1], int(wave[1] + 0.5))
         else:
+            pmin = max(0, int(arc[0] + 0.5))
+            pmax = min(self.shape[0], int(arc[1] + 0.5))
+
+        if spec_unit:
             lmin = max(0, self.velwave.wav2pix(wave[0], nearest=True))
             lmax = min(self.shape[1], self.velwave.wav2pix(wave[1], nearest=True))
+        else:
+            lmin = max(0, int(wave[0] + 0.5))
+            lmax = min(self.shape[1], int(wave[1] + 0.5))
 
 
         sx = slice(pmin, pmax+1)
@@ -157,6 +180,55 @@ class PVSlice(DataND):
         res = self.data[sx, sy].sum(axis=1)
         wcs = self.position[sx]
         return SpatLine(data = res, wcs = wcs, unit = self.position.unit)
+
+    def spectral_profile(self, wave, arc, spec_unit = False, spat_unit = False):
+
+        """
+        Extract a 1D spectral profile from a position-velocity slice
+
+        Parameters
+        ----------
+        wave : array-like
+            the spectral region over which to extract the profile
+        arc : array-like
+            the distance/offset range over which to sum the profile
+        spec_unit : bool
+            toggles whether to use pixels or native units for the spectral region;
+            default is False (use pixels)
+        spat_unit : bool
+            toggles pixels/native units for distance region; default is False
+
+        Returns
+        ----------
+        out : `telassar.SpecLine` object
+        """
+
+        if (isinstance(wave, int) or isinstance(arc, int) or len(wave) != 2 or
+                len(arc) !=2):
+            raise ValueError("Can't extract profile with only one point!")
+
+        # get the spectral and spatial limits in pixel or native unts
+        if spec_unit:
+            lmin = max(0, self.velwave.wav2pix(wave[0], nearest=True))
+            lmax = min(self.shape[1], self.velwave.wav2pix(wave[1], nearest=True))
+        else:
+            lmin = max(0, int(wave[0] + 0.5))
+            lmax = min(self.shape[1], int(wave[1] + 0.5))
+
+        if spat_unit:
+            pmin = max(0, self.position.offset2pix(arc[0], nearest=True))
+            pmax = min(self.shape[0], self.position.offset2pix(arc[1], nearest=True))
+        else:
+            pmin = max(0, int(arc[0] + 0.5))
+            pmax = min(self.shape[0], int(arc[1] + 0.5))
+
+        sx = slice(pmin, pmax+1)
+        sy = slice(lmin, lmax+1)
+
+        res = self.data[sx, sy].sum(axis=0)
+        spec = self.velwave[sy]
+
+        return SpecLine(data = res, spec = spec, unit = self.velwave.unit)
 
     def plot(self, scale = 'linear', ax = None, ax_kws = None, imshow_kws = None,
              vmin = None, vmax = None, zscale = None, emline = None):
@@ -228,7 +300,7 @@ class PVSlice(DataND):
         # set the extent of the data
         extent = get_plot_extent(self.position, self.velwave)
 
-        ax.format_coord = ImPlotter(res, data)
+        ax.format_coord = ImCoords(res, data)
         cax = ax.imshow(data, interpolation = 'nearest', origin = 'lower', norm =
                         norm, extent = extent,**imshow_kws) #extent = extent,
 
@@ -241,7 +313,7 @@ class PVSlice(DataND):
 
         # format the coordinates
         toggle_unit = True if extent is not None else False
-        ax.format_coord = ImPlotter(res, data, toggle_unit)
+        ax.format_coord = ImCoords(res, data, toggle_unit)
         fig.subplots_adjust(left = 0.15, right = 0.85)
 
         return cax
@@ -326,7 +398,7 @@ class PVSlice(DataND):
 
         # format the coordinates
         toggle_unit = True if extent is not None else False
-        ax.format_coord = ImPlotter(self, data, toggle_unit)
+        ax.format_coord = ImCoords(self, data, toggle_unit)
         fig.subplots_adjust(left = 0.15, right = 0.85)
 
         return ax
