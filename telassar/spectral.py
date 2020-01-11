@@ -8,11 +8,9 @@ from matplotlib.ticker import AutoMinorLocator
 
 from .data import DataND
 from .world import Position, VelWave
-from .plotter import (ImPlotter, get_plot_norm, get_plot_extent,
+from .plotter import (ImCoords, get_plot_norm, get_plot_extent,
                       get_background_rms, get_contour_levels)
 
 class SpecLine(DataND):
 
     _is_spectral = True
-
-    
