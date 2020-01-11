@@ -85,10 +85,12 @@ class DataND:
 
             # commenting out for now: try the `set_coords` method and
             # see what troubleshooting needs doing
-            if wcs is not None:
-                self.position = wcs
-            if spec is not None:
-                self.velwave = spec
+            #if wcs is not None:
+            #    self.position = wcs
+            #if spec is not None:
+            #    self.velwave = spec
+            self.set_coords(wcs = kwargs.pop('wcs', None),
+                            velwave = kwargs.pop('spec', None))
 
 
     @property
@@ -200,7 +202,7 @@ class DataND:
         spat_unit = str(self.position.unit) if self.position is not None else 'no unit'
         spec_unit = str(self.velwave.unit) if self.velwave is not None else 'no unit'
 
-        log('%s (%s %s)', data, spat_unit, spec_unit.replace(' ', ''))
+        log('%s (%s, %s)', data, spat_unit, spec_unit.replace(' ', ''))
         #print('%s (%s,  %s)' % (data, spat_unit, spec_unit))
         if self.position is None:
             log('No world coordinates installed')
@@ -308,57 +310,79 @@ class DataND:
         res = ma.max(self.data)
         return res
 
-    # def set_coords(self, wcs = None, velwave = None):
-    #     """
-    #     Set the wcs info for the object. Hopefully this sorts the issue
-    #     of reducing 2D PV data to 1D spatial/spectral data?
-    #     """
-    #
-    #     #print("going to set_coords")
-    #     #if self.header is not None:
-    #     #    hdr = self.header.copy()
-    #     #else:
-    #     #    hdr = None
-    #     # Install PV coordinates.
-    #     if len(self.shape) > 1:
-    #         if (wcs is not None) and (velwave is not None):
-    #             try:
-    #             #if hdr is not None:
-    #             #    self.position = Position(hdr)
-    #             #    self.velwave = VelWave(hdr)
-    #             #elif hdr is None and (wcs is not None and velwave is not None):
-    #
-    #                 self.position = wcs.copy()
-    #                 self.velwave = velwave.copy()
-    #             except Exception:
-    #                 self._logger.warning("Unable to install coordinates",
-    #                                     exc_info=True)
-    #                 self.position = None
-    #                 self.velwave = None
-    #
-    #     # If the data is 1D, sort out which is which
-    #     if len(self.shape) != 2:
-    #         if self._is_spatial and wcs is not None:
-    #             try:
-    #             #if hdr is not None:
-    #             #    self.position = Position(hdr)
-    #             #elif hdr is None and wcs is not None:
-    #                 self.position = wcs.copy()
-    #             except Exception:
-    #                 self._logger.warning("Unable to install spatial "
-    #                                     "coordinates", exc_info=True)
-    #                 self.position = None
-    #         else:
-    #             self.position = None
-    #         if self._is_spectral and velwave is not None:
-    #             try:
-    #             #if hdr is not None:
-    #             #    self.velwave = VelWave(hdr)
-    #             #elif hdr is None and velwave is not None:
-    #                 self.velwave = velwave.copy()
-    #             except Exception:
-    #                 self._logger.warning("Unable to install spectral "
-    #                                     "coordinates", exc_info=True)
-    #                 self.velwave = None
-    #         else:
-    #             self.velwave = None
+    def set_coords(self, wcs = None, velwave = None):
+        """
+        Set the wcs info for the object. Hopefully this sorts the issue
+        of reducing 2D PV data to 1D spatial/spectral data?
+        """
+
+        print("going to set_coords")
+        if self.header is not None:
+            hdr = self.header.copy()
+        else:
+            hdr = None
+
+        # Install PV coordinates. This checks first if `wcs` or `velwave` args
+        # are passed and installs them; if either is`None`, then it checks for
+        # a header and attempts to install coords from that; otherwise, raise
+        # an error
+        if len(self.shape) == 2:
+            try:
+                if (wcs is not None) and (velwave is not None):
+                    self.position = wcs.copy()
+                    self.velwave = velwave.copy()
+                elif (wcs is None or velwave is None) and (hdr is not None):
+                    self.position = Position(hdr)
+                    self.velwave = VelWave(hdr)
+            except Exception:
+                    self._logger.warning("Unable to install coordinates",
+                                        exc_info=True)
+                    self.position = None
+                    self.velwave = None
+
+        # If the data is 1D, sort out which is which
+        if len(self.shape) ==1:
+            if self._is_spatial:
+                try:
+                    if wcs is not None:
+                        self.position = wcs.copy()
+                    elif wcs is None and hdr is not None:
+                        self.position = Position(hdr)
+                except Exception:
+                    self._logger.warning("Unable to install spatial "
+                                        "coordinates", exc_info=True)
+                    self.position = None
+            if self._is_spectral:
+                try:
+                    if velwave is not None:
+                        self.velwave = velwave.copy()
+                    elif velwave is None and hdr is not None:
+                        self.velwave = VelWave(hdr)
+                except Exception:
+                    self._logger.warning("Unable to install spatial "
+                                        "coordinates", exc_info=True)
+                    self.position = None
+
+            #         #try:
+            #     #if hdr is not None:
+            #     #    self.position = Position(hdr)
+            #     #elif hdr is None and wcs is not None:
+            #             self.position = wcs.copy()
+            #         except Exception:
+            #             self._logger.warning("Unable to install spatial "
+            #                                 "coordinates", exc_info=True)
+            #             self.position = None
+            # else:
+            #     self.position = None
+            # if self._is_spectral and velwave is not None:
+            #     try:
+            #     #if hdr is not None:
+            #     #    self.velwave = VelWave(hdr)
+            #     #elif hdr is None and velwave is not None:
+            #         self.velwave = velwave.copy()
+            #     except Exception:
+            #         self._logger.warning("Unable to install spectral "
+            #                             "coordinates", exc_info=True)
+            #         self.velwave = None
+            # else:
+            #     self.velwave = None
