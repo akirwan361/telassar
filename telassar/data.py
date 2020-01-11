@@ -316,7 +316,7 @@ class DataND:
         of reducing 2D PV data to 1D spatial/spectral data?
         """
 
-        print("going to set_coords")
+        #print("going to set_coords")
         if self.header is not None:
             hdr = self.header.copy()
         else:
