@@ -18,8 +18,18 @@ or
 $ my_file = PVSlice(data = my_data, header = my_header)
 ```
 
+A 2D slice can also be reduced to a 1D spatial or spectral profile given a wavelength range and offset range:
+```
+$ new_file = my_file.spatial_profile(arc = [0, 30], wave = [6725, 6730], spat_unit = True, spec_unit = True)
+```
+
+For quick data viewing, a contour plot is easily generated:
+```
+$ my_file.plot_contours()
+```
+
 TODO
 -----
-- Add capability to extract spatial/spectral profiles from the data
 - Add [LMFit-py](https://lmfit.github.io/lmfit-py/) modeling options for fitting profiles
+- Expand spatial/spectral profile class functionality (ie plotting, fitting, and integration)
 - Learn how to do everything properly.
