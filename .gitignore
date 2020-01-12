@@ -7,9 +7,6 @@ etc/
 include/
 lib/
 lib64/
+old/
 share/
 pyvenv.cfg
-testing_tools.ipynb
-.world_test
-world_test.py
-
