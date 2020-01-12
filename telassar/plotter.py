@@ -2,6 +2,7 @@ import astropy.units as u
 import numpy as np
 from numpy import ma
 import matplotlib.pyplot as plt
+from matplotlib.ticker import AutoMinorLocator
 from .tools import timeit
 
 
@@ -195,3 +196,30 @@ def get_contour_levels(data, sigma):
     #lvls1 = dmax * scale
 
     return lvls1, lvls2
+
+def configure_axes(ax, obj):
+
+    labels = {
+        'OFFSET' : 'Offset',
+        'VELO' : 'V$_{rad}$',
+        'WAVE' : '$\lambda$',
+        'AWAV' : '$\lambda$'
+    }
+
+    spec = obj.velwave
+    pos = obj.position
+
+    spec_type = spec.wcs.wcs.ctype[0]
+    spat_type = pos.wcs.wcs.ctype[0]
+
+    y_type = labels[spat_type] if spat_type in labels.keys() else ''
+    x_type = labels[spec_type] if spec_type in labels.keys() else ''
+
+    ax.set_xlabel(rf'{x_type} ({u.Unit(spec.unit).to_string("latex")})')
+    ax.set_ylabel(rf'{y_type} ({u.Unit(pos.unit).to_string("latex")})')
+
+    ax.margins(0.05)
+    ax.xaxis.set_minor_locator(AutoMinorLocator())
+    ax.yaxis.set_minor_locator(AutoMinorLocator())
+    ax.tick_params(which = 'major', direction = 'inout', length = 9)
+    ax.tick_params(which = 'minor', direction = 'inout', length = 6)
