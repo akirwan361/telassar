@@ -4,14 +4,14 @@ from numpy import ma
 import numpy as np
 from lmfit import models
 import matplotlib.pyplot as plt
-from matplotlib.ticker import AutoMinorLocator
 
 from .data import DataND
 from .world import Position, VelWave
 from .spatial import SpatLine
 from .spectral import SpecLine
 from .plotter import (ImCoords, get_plot_norm, get_plot_extent,
-                      get_background_rms, get_contour_levels)
+                      get_background_rms, get_contour_levels,
+                      configure_axes)
 
 # a running line list
 
@@ -319,7 +319,7 @@ class PVSlice(DataND):
         return cax
 
     def plot_contours(self, sig = None, mask = None, levels1 = None, levels2 = None,
-                      cmaps = None, ax_kws = None, fig_kws = None, emline = None):
+                      cmaps = None, fig_kws = None, emline = None):
         '''
         Generate a contour plot of the data. Useful for jet visualization!
 
@@ -338,16 +338,12 @@ class PVSlice(DataND):
             the second colormap to pass to `plt.contour`
         '''
 
-        if ax_kws is None:
-            ax_kws = {}
         if fig_kws is None:
             fig_kws = {'figsize' : (6, 9)}
 
-        emis = None
         if emline is not None:
             if emline in lines.keys():
                 emis = lines[emline][2]
-                ax_kws.update({'title': rf'{emis}'})
 
         # default cmap colors
         colors = ['gist_gray', 'Oranges', 'gray']
@@ -366,37 +362,16 @@ class PVSlice(DataND):
 
         extent = get_plot_extent(self.position, self.velwave)
 
-        spectral_unit = u.Unit(self.velwave.unit).to_string('latex')
-        spatial_unit = u.Unit(self.position.unit).to_string('latex')
-        if self.position.wcs.wcs.ctype[0] == 'OFFSET':
-            y_type = rf'Offset'
-        else:
-            y_type = ''
-        if self.velwave.wcs.wcs.ctype[0] == 'VELO':
-            x_type = r'V$_{rad}$'
-        elif self.velwave.wcs.wcs.ctype[0] in ['WAVE', 'AWAV']:
-            x_type = r'$\lambda$'
-        else:
-            x_type = ''
-
-        # testing this
-        ax_kws.update({'xlabel' : rf'{x_type} ({spectral_unit})',
-                       'ylabel' : rf'{y_type} ({spatial_unit})'})
-
-        fig, ax = plt.subplots(**fig_kws, subplot_kw = ax_kws)
+        # make the plot
+        fig, ax = plt.subplots(**fig_kws)
+        ax.set_title(rf'{emis}')
         jet1 = ax.contour(data, levels=levels1, cmap=cmaps[0], extent=extent)
         jet2 = ax.contourf(data, levels=levels1, cmap=cmaps[1], extent=extent)
         bkgrd = ax.contourf(data, levels=levels2, cmap=cmaps[2], extent=extent,
                             alpha = 0.8)
 
-        ax.margins(0.05)
-        ax.xaxis.set_minor_locator(AutoMinorLocator())
-        ax.yaxis.set_minor_locator(AutoMinorLocator())
-        ax.tick_params(which = 'major', direction = 'inout', length = 9)
-        ax.tick_params(which = 'minor', direction = 'inout', length = 6)
-
-
-        # format the coordinates
+        # format the canvas and coordinates
+        configure_axes(ax, self)
         toggle_unit = True if extent is not None else False
         ax.format_coord = ImCoords(self, data, toggle_unit)
         fig.subplots_adjust(left = 0.15, right = 0.85)
