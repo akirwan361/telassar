@@ -1,0 +1,14 @@
+# compiled files
+*.py[cod]
+*.a
+*.o
+__pycache__
+
+*.c
+
+# packages/installer info
+*.egg
+*.egg-info
+dist/
+build/
+setup/
