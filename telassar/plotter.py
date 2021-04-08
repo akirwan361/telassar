@@ -2,7 +2,7 @@ import astropy.units as u
 import numpy as np
 from numpy import ma
 import matplotlib.pyplot as plt
-from matplotlib.ticker import AutoMinorLocator
+from matplotlib.ticker import AutoMinorLocator, MaxNLocator
 from .tools import timeit
 
 
@@ -23,14 +23,6 @@ class ImCoords:
             # get the pixel values
             col = im.velwave.wav2pix(x, nearest=True)
             row = im.position.offset2pix(y, nearest= True)
-            '''xc = x
-            yc = y
-            val = self.data[row, col]
-
-            if np.isscalar(val):
-                return 'y = %g x = %g p = %i q = %i data = %g' % (yc, xc, row, col, val)
-            else:
-                return 'y = %g x = %g p = %i q = %i data = %s' % (yc, xc, row, col, val)'''
 
         else:
             col = int(x + 0.5)
@@ -57,7 +49,11 @@ def get_plot_norm(data, vmin = None, vmax = None, zscale = False, scale = 'linea
 
     if zscale:
         interval = viz.ZScaleInterval()
-        vmin, vmax = interval.get_limits(data.filled(0))
+        try:
+            vmin, vmax = interval.get_limits(data.filled(0))
+        except AttributeError:
+            vmin, vmax = interval.get_limits(data)
+
 
     if scale == 'linear':
         stretch = viz.LinearStretch
@@ -83,7 +79,11 @@ def get_plot_extent(wcs_obj, spec_obj):
     xmax = spec_obj.get_stop()+0.5
     ymin = wcs_obj.get_start()-0.5
     ymax = wcs_obj.get_stop()+0.5
-
+    
+    print(spec_obj.wcs.wcs.ctype[0])
+    if spec_obj.wcs.wcs.ctype[0] == 'VELO':
+        xmin /= 1000
+        xmax /= 1000
     return xmin, xmax, ymin, ymax
 
 def get_background_rms(data, sigma = 3, N = 10, mask = None):
@@ -150,7 +150,7 @@ def get_background_rms(data, sigma = 3, N = 10, mask = None):
     sigma_clip = SigmaClip(sigma=sigma)
     bkg_estimator = MedianBackground()
     rms_estimator = StdBackgroundRMS()
-    bkg = Background2D(ndata, (sy, sx), filter_size = (3,3), sigma_clip = sigma_clip,
+    bkg = Background2D(ndata, (sy, sx), filter_size = (5,5), sigma_clip = sigma_clip,
                     bkg_estimator = bkg_estimator, bkgrms_estimator = rms_estimator,
                     mask = mask, edge_method = edge_method)
 
@@ -170,11 +170,13 @@ def get_contour_levels(data, sigma):
     # By default, the lower and upper levels are 0.017 and 1, and the exponents
     # are found by:
     #   x = (2 * ln(3 * lvls / sigma) / ln(2) - 4
-    expo = lambda lvl, sgma : (2 * np.log(3 * lvl/sgma) / np.log(2)) - 4
+    expo = lambda lvl, sig : (2 * np.log(3 * lvl/sig) / np.log(2)) - 4
 
+    ndata = data.copy()
+    #ndata[ndata < -6*sigma] = ma.masked
     # get min and max of data
-    dmax = data.max()
-    dmin = data.min()
+    dmax = ndata.max()
+    dmin = ndata.min()
 
     # get upper and lower contour levels
     l0 = 0.01697583 * dmax
@@ -215,11 +217,15 @@ def configure_axes(ax, obj):
     y_type = labels[spat_type] if spat_type in labels.keys() else ''
     x_type = labels[spec_type] if spec_type in labels.keys() else ''
 
-    ax.set_xlabel(rf'{x_type} ({u.Unit(spec.unit).to_string("latex")})')
-    ax.set_ylabel(rf'{y_type} ({u.Unit(pos.unit).to_string("latex")})')
+    ax.set_xlabel(rf'{x_type} ({u.Unit(spec.unit).to_string("latex")})', fontsize = 10)
+    ax.set_ylabel(rf'{y_type} ({u.Unit(pos.unit).to_string("latex")})', fontsize = 10)
+
+    # because the formatting can be weird
+    xsize = spec.pix2wav().size
 
     ax.margins(0.05)
+    ax.xaxis.set_major_locator(MaxNLocator(6))
     ax.xaxis.set_minor_locator(AutoMinorLocator())
     ax.yaxis.set_minor_locator(AutoMinorLocator())
-    ax.tick_params(which = 'major', direction = 'inout', length = 9)
-    ax.tick_params(which = 'minor', direction = 'inout', length = 6)
+    ax.tick_params(which = 'major', direction = 'in', length = 9)
+    ax.tick_params(which = 'minor', direction = 'in', length = 6)

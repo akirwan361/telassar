@@ -143,3 +143,33 @@ def format_header(hdr, mode):
             hdu.set(f'{key}{n}', val)
 
     return hdu
+
+def read_modlist_from_csv(fname):
+    '''
+    If your model list is in a CSV file, here's a way to pick it out
+
+    Parameters
+    -----------
+    fname : str
+        Obviously a filename; may add more kwargs later for an option to use
+        `pandas`
+
+    Returns
+    -----------
+    out : `OrderedDict`
+        A dictionary of the CSV, with headers being the keys and the columns
+        being the entries
+    '''
+    modlist = collections.defaultdict(list)
+
+    with open(fname) as f:
+        reader = csv.DictReader(f, delimiter = ',')
+        for row in reader:
+            # Are some columns longer than others? Skip the blank cells
+            if any(row[key] in (None, '') for key in row):
+                continue
+            # Only need the first letter since that's how we roll
+            for key in row:
+                modlist[key].append(row[key][0])
+
+    return modlist

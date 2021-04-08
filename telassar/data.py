@@ -17,10 +17,7 @@ class DataND:
                  ext = None, header = None, unit = None, wcs = None, spec=None,
                  **kwargs):
 
-        #hdul = None
-        #logging.basicConfig(level=logging.DEBUG)
         self._logger = logging.getLogger(__name__)
-        #self._logger.info('yes')
 
         self.filename = filename
         self.ext = ext
@@ -52,6 +49,7 @@ class DataND:
 
             self._mask = ~(np.isfinite(self._data))
             self.position = Position(self.header)
+            #print(self.position.info())
             self.velwave = VelWave(self.header)
 
         else:
@@ -89,8 +87,9 @@ class DataND:
             #    self.position = wcs
             #if spec is not None:
             #    self.velwave = spec
-            self.set_coords(wcs = kwargs.pop('wcs', None),
-                            velwave = kwargs.pop('spec', None))
+        # this didn't work like I thought, hopefully there are no issues
+        self.set_coords(wcs = wcs,#kwargs.pop('wcs', None),
+                        spec = spec)#kwargs.pop('velwave', None))
 
 
     @property
@@ -109,10 +108,13 @@ class DataND:
 
     @property
     def shape(self):
+        #return tuple(self.header['NAXIS%d' % i]
+        #             for i in range(self.ndim, 0, -1))
         return self._data.shape
-
     @property
     def ndim(self):
+        if self._data is not None:
+            return self._data.ndim
         try:
             return self.header['NAXIS']
         except KeyError:
@@ -199,8 +201,8 @@ class DataND:
             self.filename or 'no name')
 
         data = ('no data' if self._data is None else f'.data({shape_str})')
-        spat_unit = str(self.position.unit) if self.position is not None else 'no unit'
-        spec_unit = str(self.velwave.unit) if self.velwave is not None else 'no unit'
+        spat_unit = ('no unit' if self.position is None else str(self.position.unit))
+        spec_unit = ('no unit' if self.velwave is None else str(self.velwave.unit) )
 
         log('%s (%s, %s)', data, spat_unit, spec_unit.replace(' ', ''))
         #print('%s (%s,  %s)' % (data, spat_unit, spec_unit))
@@ -257,7 +259,7 @@ class DataND:
                 if isinstance(item, int):
                     reshape = (1, data.shape[0])
 
-            elif item is not None or item is ():
+            elif item is not None or item == ():
                 try:
                     wcs = self.position.copy()
                     spec = self.velwave.copy()
@@ -276,7 +278,7 @@ class DataND:
                     spec = self.velwave[item]
                 except Exception:
                     spec = None
-            elif item is None or item is ():
+            elif item is None or item == ():
                 try:
                     wcs = self.position.copy()
                 except Exception:
@@ -310,13 +312,12 @@ class DataND:
         res = ma.max(self.data)
         return res
 
-    def set_coords(self, wcs = None, velwave = None):
+    def set_coords(self, wcs = None, spec = None):
         """
         Set the wcs info for the object. Hopefully this sorts the issue
         of reducing 2D PV data to 1D spatial/spectral data?
         """
 
-        #print("going to set_coords")
         if self.header is not None:
             hdr = self.header.copy()
         else:
@@ -328,10 +329,10 @@ class DataND:
         # an error
         if len(self.shape) == 2:
             try:
-                if (wcs is not None) and (velwave is not None):
-                    self.position = wcs.copy()
-                    self.velwave = velwave.copy()
-                elif (wcs is None or velwave is None) and (hdr is not None):
+                if (wcs is not None) and (spec is not None):
+                    self.position = wcs#.copy()
+                    self.velwave = spec#.copy()
+                elif (wcs is None or spec is None) and (hdr is not None):
                     self.position = Position(hdr)
                     self.velwave = VelWave(hdr)
             except Exception:
@@ -345,7 +346,7 @@ class DataND:
             if self._is_spatial:
                 try:
                     if wcs is not None:
-                        self.position = wcs.copy()
+                        self.position = wcs#.copy()
                     elif wcs is None and hdr is not None:
                         self.position = Position(hdr)
                 except Exception:
@@ -354,9 +355,9 @@ class DataND:
                     self.position = None
             if self._is_spectral:
                 try:
-                    if velwave is not None:
-                        self.velwave = velwave.copy()
-                    elif velwave is None and hdr is not None:
+                    if spec is not None:
+                        self.velwave = spec#.copy()
+                    elif spec is None and hdr is not None:
                         self.velwave = VelWave(hdr)
                 except Exception:
                     self._logger.warning("Unable to install spatial "

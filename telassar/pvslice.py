@@ -12,21 +12,9 @@ from .spectral import SpecLine
 from .plotter import (ImCoords, get_plot_norm, get_plot_extent,
                       get_background_rms, get_contour_levels,
                       configure_axes)
+from .lines import lines
 
-# a running line list
-
-lines = {
-        'OI6300':   [6300.304, 'Angstrom', r'$[\mathrm{OI}]\lambda 6300\AA$'],
-        'OI6363':   [6363.777, 'Angstrom', r'$[\mathrm{OI}]\lambda 6363\AA$'],
-        'NII6548':  [6548.04, 'Angstrom', r'$[\mathrm{NII}]\lambda 6548\AA$'],
-        'NII6583':  [6583.46,  'Angstrom', r'$[\mathrm{NII}]\lambda 6583\AA$'],
-        'HAlpha':   [6562.8,  'Angstrom', r'$\mathrm{H}\alpha$'],
-        'HBeta':    [4861.325,  'Angstrom', r'$\mathrm{H}\beta$'],
-        'SII6716':  [6716.44,  'Angstrom', r'$[\mathrm{SII}]\lambda 6716\AA$'],
-        'SII6731':  [6730.81,  'Angstrom', r'$[\mathrm{SII}]\lambda 6730\AA$'],
-        'CaII7291': [7291.47, 'Angstrom', r'$[\mathrm{CaII}]\lambda 7291\AA$'],
-        'CaII7324': [7323.89, 'Angstrom', r'$[\mathrm{CaII}]\lambda 7324\AA$']
-}
+from matplotlib.ticker import AutoMinorLocator, MaxNLocator
 
 class PVSlice(DataND):
 
@@ -43,7 +31,9 @@ class PVSlice(DataND):
         pvslice[i, :] = spectral profile
         pvslice[:, :] = sub-pvslice
         """
+        #print(item)
         obj = super(PVSlice, self).__getitem__(item)
+        #print(type(obj))
         if isinstance(obj, DataND):
             if obj.ndim == 2:
                 return obj
@@ -230,7 +220,7 @@ class PVSlice(DataND):
 
         return SpecLine(data = res, spec = spec, unit = self.velwave.unit)
 
-    def plot(self, scale = 'linear', ax = None, ax_kws = None, imshow_kws = None,
+    def plot(self, scale = 'linear', ax = None, fig_kws = None, imshow_kws = None,
              vmin = None, vmax = None, zscale = None, emline = None):
         '''
         This function generates an simple plot of the desired data.
@@ -259,40 +249,23 @@ class PVSlice(DataND):
 
         '''
 
-        if ax_kws is None:
-            ax_kws = {}
+        if fig_kws is None:
+            fig_kws = {'figsize' : (6, 9)}
+        # TODO: set some defaults here
         if imshow_kws is None:
             imshow_kws = {}
 
-        emis = None
         if emline is not None:
             if emline in lines.keys():
                 emis = lines[emline][2]
-                ax_kws.update({'title': rf'{emis}'})
 
         # set the data and plot parameters
         res = self.copy()
         data = self.data.copy()
-        spectral_unit = u.Unit(self.velwave.unit).to_string('latex')
-        spatial_unit = u.Unit(self.position.unit).to_string('latex')
-
-        if self.position.wcs.wcs.ctype[0] == 'OFFSET':
-            y_type = rf'Offset'
-        else:
-            y_type = ''
-        if self.velwave.wcs.wcs.ctype[0] == 'VELO':
-            x_type = r'V$_{rad}$'
-        elif self.velwave.wcs.wcs.ctype[0] in ['WAVE', 'AWAV']:
-            x_type = r'$\lambda$'
-        else:
-            x_type = ''
-
-        ax_kws.update({'xlabel' : rf'{x_type} ({spectral_unit})',
-                       'ylabel' : rf'{y_type} ({spatial_unit})'})
 
         if ax is None:
             #fig, ax = plt.subplots(subplot_kw = ax_kws)
-            fig, ax = plt.subplots(figsize = (6, 9), subplot_kw = ax_kws)
+            fig, ax = plt.subplots(**fig_kws)
 
         # get a norm
         norm = get_plot_norm(data, vmin = vmin, vmax = vmax, zscale = zscale,
@@ -300,26 +273,20 @@ class PVSlice(DataND):
         # set the extent of the data
         extent = get_plot_extent(self.position, self.velwave)
 
-        ax.format_coord = ImCoords(res, data)
         cax = ax.imshow(data, interpolation = 'nearest', origin = 'lower', norm =
                         norm, extent = extent,**imshow_kws) #extent = extent,
 
-
-        ax.margins(0.05)
-        ax.xaxis.set_minor_locator(AutoMinorLocator())
-        ax.yaxis.set_minor_locator(AutoMinorLocator())
-        ax.tick_params(which = 'major', direction = 'inout', length = 9)
-        ax.tick_params(which = 'minor', direction = 'inout', length = 6)
-
-        # format the coordinates
+        # format the axes and coordinates
         toggle_unit = True if extent is not None else False
+        configure_axes(ax, self)
         ax.format_coord = ImCoords(res, data, toggle_unit)
         fig.subplots_adjust(left = 0.15, right = 0.85)
 
         return cax
 
-    def plot_contours(self, sig = None, mask = None, levels1 = None, levels2 = None,
-                      cmaps = None, fig_kws = None, emline = None):
+    def plot_contours(self, figure = None, place = None, sig = None, mask = None,
+                      levels1 = None, levels2 = None, cmaps = None, fig_kws = None,
+                      plt_kws = None, emline = None):
         '''
         Generate a contour plot of the data. Useful for jet visualization!
 
@@ -339,8 +306,9 @@ class PVSlice(DataND):
         '''
 
         if fig_kws is None:
-            fig_kws = {'figsize' : (6, 9)}
+            fig_kws = {'figsize' : (5, 9)}
 
+        emis = None
         if emline is not None:
             if emline in lines.keys():
                 emis = lines[emline][2]
@@ -360,21 +328,32 @@ class PVSlice(DataND):
 
         cmaps = colors if cmaps is None else cmaps
 
-        extent = get_plot_extent(self.position, self.velwave)
+        if plt_kws is None:
+            ext = get_plot_extent(self.position, self.velwave)
+            plt_kws = {'extent': ext}
+        #extent = get_plot_extent(self.position, self.velwave)
 
         # make the plot
-        fig, ax = plt.subplots(**fig_kws)
-        ax.set_title(rf'{emis}')
-        jet1 = ax.contour(data, levels=levels1, cmap=cmaps[0], extent=extent)
-        jet2 = ax.contourf(data, levels=levels1, cmap=cmaps[1], extent=extent)
-        bkgrd = ax.contourf(data, levels=levels2, cmap=cmaps[2], extent=extent,
+        if figure is not None:
+            fig = plt.gcf()
+            if place < len(fig.axes):
+                ax = fig.axes[place]
+        else:
+            fig, ax = plt.subplots(**fig_kws)
+        if emis is not None:
+            ax.set_title(rf'{emis}', fontsize = 14)
+
+        jet1 = ax.contour(data, levels=levels1, cmap=cmaps[0], **plt_kws)#extent=extent)
+        jet2 = ax.contourf(data, levels=levels1, cmap=cmaps[1], **plt_kws)#extent=extent)
+        bkgrd = ax.contourf(data, levels=levels2, cmap=cmaps[2], **plt_kws,#extent=extent,
                             alpha = 0.8)
 
         # format the canvas and coordinates
         configure_axes(ax, self)
-        toggle_unit = True if extent is not None else False
+        toggle_unit = True #if extent is not None else False
         ax.format_coord = ImCoords(self, data, toggle_unit)
-        fig.subplots_adjust(left = 0.15, right = 0.85)
+        #ax.xaxis
+        #fig.subplots_adjust(left = 0.15, right = 0.85)
 
         return ax
 
@@ -409,291 +388,105 @@ class PVSlice(DataND):
         #mom = np.array([ywidth, xwidth])
         return height, y, x, ywidth, xwidth
 
-    def _prep_data(self, interp = 'no'):
+    def to_fits(self):
+
+        hdr = fits.Header()
+        spec_hdr = self.velwave.wcs.to_header()
+        spat_hdr = self.position.wcs.to_header()
+
+
+
+        return
+
+    def radial_velocity(self, ref, lbdas, vcorr = None, unit = 'angstrom',
+                        nearest = False):
         '''
-        any fitting routine will function best when extreme outliers are
-        minimised; we may mask values in our view of the data, but `lmfit` will
-        operate on the unmasked data. This function will fill the masked values
-        with 0 and let `lmfit` work its magic from there
-
-        for now, just leave interp as 'no' because I don't want to work out the
-        interpolation, and it will likely not be reliable for extreme outliers
-        at the endpoints of the data.
-
-        Parameters
-        ----------
-        interp : str, 'no', 'linear', or 'spline'
-            leaving this as 'no' for now
-
-        Returns
-        ---------
-        out : np.ndarray
-        '''
-        #case 'no'
-        data = np.ma.filled(self.data, 0.)
-        return data
-
-    def prep_model(self, model_list, unit = True):
-        """
-        Allows for a list of models to be sent to the prepper
-        'g' - Guassian Model
-        'l' - Lorentzian model
-        'v' - Voigt Model
-
-        Using the above, allow the user to quickly enter
-        keywords for the model types to save time
-
-        We can add unit support later as well
-        """
-
-        # TODO: Add a comprehensive-ish treatment for units
-        pix = np.arange(self.shape[0], dtype = np.float64)
-        '''if unit is not None:
-            # try to convert units: if self.unit isn't angstrom it will fail
-            try:
-                res = (pix * self.unit).to(unit).value
-            except UnitConversionError:
-                print("Specified units are not convertible, using pixel values")
-                res = pix.copy()
-        else:
-            unit = self.unit
-            res = self.world.pix2val(pix, 0)
-        '''
-
-        if unit:
-            cunit = u.Unit(self.unit)
-        else:
-            cunit = u.Unit('pixel')
-
-        xarr = self.world.pix2val(pix) if unit else pix
-        res = self._prep_data() #self._data.copy()
-
-        #self.mod_list = model_list
-        model_keys = {
-                'g' : 'GaussianModel',
-                'l' : 'LorentzianModel',
-                'v' : 'VoigtModel'
-                }
-
-        # Now, set the model_data dict with the data we
-        # want to model
-        model_data = {
-                'x' : xarr,
-                'y' : res,
-                'unit' : cunit,
-                'model' : []
-                }
-
-        # Next, make a list where 'type' is key and
-        # the model_key values are the values
-        mlist = []
-        for m in model_list:
-            m = m.lower()
-            mdict = {}
-            mdict['type'] = model_keys[m]
-            mlist.append(mdict)
-        # update this with the model keyword data
-        model_data.update(model = mlist)
-
-        self.model_info = model_data
-        return self.model_info
-
-
-    def generate_model(self, model_list, prepped_model = None, unit = True):
-
-        '''
-        Generate a model using a model list and coord data. This function
-        utilises `lmfit` to generate the function models, perform a lstsq fit
-        to the data, and evaluate the fit for plotting and analysis.
-        '''
-        # set up the model
-        if prepped_model is None:
-            prep = self.prep_model(model_list)
-        else:
-            prep = prepped_model.copy()
-
-        composite_model = None
-        params = None
-        x = prep['x']
-        y = prep['y']
-        x_min = x.min()
-        x_max = x.max()
-        # probably don't need range
-        #x_range = x_max - x_min
-
-        # format the coords list as an array, and check if it contains both
-        # (x, y) components or just (x, ); if only (x, ) is present evaluate
-        # the data at x.
-        coords = np.asarray(self.coords)
-        if len(coords.shape) == 1:
-            if prep['unit'] == 'arcsec':
-                k = self.world.val2pix(coords, nearest = True)
-            elif prep['unit'] == 'pix':
-                k = [int(c + 0.5) for c in coords]
-            coords = np.vstack((k, y[k])).T
-
-        #if prep['unit'].to_string() == 'pix':
-        #    coords[:, 0] /= 0.2
-        # For each basis function in the model dictionary, `lmfit` will need
-        # some basic parameters to set the initial conditions. These are
-        # estimated by evaluating the data at specified coordinates to set a
-        # centroid/offset and peak value, and a basic sigma is provided
-        for i, func in enumerate(prep['model']):
-            ctr, peak = coords[i]
-            prefix = f'm{i}'
-            model = getattr(models, func['type'])(prefix=prefix)
-
-            if func['type'] in ['GaussianModel', 'LorentzianModel',
-                                'VoigtModel']:
-                model.set_param_hint('amplitude', value = 1.1*peak,
-                                      min = 0.01 * peak)
-                model.set_param_hint('center', value = ctr, min = ctr-10,
-                                      max = ctr + 10)
-                model.set_param_hint('sigma', min = 1e-6, max = 30)
-                default_params = {
-                        prefix+'center' : ctr,
-                        prefix+'height' : peak,
-                        prefix+'sigma' : 5
-                    }
-            else:
-                raise NotImplementedError(f"Model {func['type']} not implemented yet")
-
-            # make the parameters
-            model_params = model.make_params(**default_params, **func.get('params', {}))
-
-            if params is None:
-                params = model_params
-            else:
-                params.update(model_params)
-            if composite_model is None:
-                composite_model = model
-            else:
-                composite_model = composite_model + model
-
-        return composite_model, params
-
-    def fit_model(self, model_list, coords = None, mode = 'components', plot = False,
-                  unit = True):
-
-        """
-        Fit a model or composite model based on user specified parameters.
-        This function uses `lmfit` to handle the grunt work.
-
+        Compute the uncorrected radial velocity of an emission range based on some
+        reference emission and wavelength array. Test "obj" to see if it's just an
+        `mpdaf.obj.Cube` object, and if so extract the wavelength data; if "obj" is
+        a wavelength array, then just use that
         Parameters
         -----------
-        model_list : list, str
-            An ordered list of model keywords used to fill the dict with
-            the model types.
-        coords : list, tuple
-            A list of tuples containing (x, y) coordinates for the peaks
-            and their locations
-        plot : bool
-            Do you want the data plotted?
-        mode : None, or str
-            If plot is True, do you want residuals or components plotted?
-
+        ref : float or str
+            the emission line in vaccum or air. if float, just use the number; if
+            str, then it needs to be something from the `lines` list at the top
+        lbdas : list, tuple, or `np.ndarray`
+            the wavelength range for which to compute the velocity.
+        vcorr : float
+            the velocity correction; None by default
         Returns
-        ------------
-        out : `lmfit.models.results` or whatever it is
-        """
-        import matplotlib.pyplot as plt
-        # if coords are given, format them and override the class attribute
-        if coords is not None:
-            try:
-                coords = np.asarray(coords, dtype = np.float64)
-            except ValueError:
-                print("Coords must be numeric")
-            self.coords = coords
+        -----------
+        velocities : `np.ndarray`
+            array of velocities (blue- and red-shifted) computed from arguments
+        '''
 
-        # make the model
-        model_data, params = self.generate_model(model_list)
+        from astropy.constants import c
 
-        result = model_data.fit(self.model_info['y'], params, x = self.model_info['x'])
-        self.fit_result = result
-
-        if plot:
-            ax = plt.gca()
-
-            # figure out labels for the axes
-            if self.unit == 'arcsec':
-                xlab = 'Offset (arcsec)'
-            if self.unit == 'angstrom':
-                xlab = r'$\lambda$'
+        if unit.lower() == 'angstrom':
+            if nearest:
+                px = self.velwave.wav2pix(lbdas, nearest=True)
+                obs = self.velwave.pix2wav(px)
             else:
-                xlab = 'Pixel'
-
-            # Handle motion events?
-            def _on_move(event):
-                if event.inaxes is not None:
-                    xc, yc = event.xdata, event.ydata
-                    try:
-                        #i = self.world.pix2val(xc)
-                        i = self.world.val2pix(xc, nearest = True)
-                        x = self.world.pix2val(i)
-                        #event.canvas.toolbar.set_message(
-                        event.canvas.toolbar.set_message(
-                            f'xc = {xc:0.2f} yc = {yc:0.2f} {self.unit} = {x:0.1f} k = {i} data = {self._data[i]:0.2f}' )
-                    except Exception:# as e:
-                        #print(e) # for debug
-                        pass
-
-            # if no mode is given, default to 'components'?
-            if mode is None:
-                mode = 'components'
-
-            if mode.lower() == 'components':
-                ax.scatter(model_data['x'], model_data['y'], s = 4)
-                components = result.eval_components(x = model_data['x'])
-                for i, model in enumerate(model_data['model']):
-                    ax.plot(model_data['x'], components[f'm{i}'], label = f'm{i}_{model["type"]}')
-                ax.set_xlabel(xlab)
-                # make centroid labels?
-                for key, val in result.params.items():
-                    if key.endswith('center'):
-                        lab = str(np.round(val, 2)) + "''"
-                        ax.axvline(val, ls = ':')
-                        plt.text(val + 0.2, y = 0.8 * model_data['y'].max(), s = lab,
-                                rotation = 90)
-
-            if mode.lower() == 'residuals':
-                print('Do something')
-
-    def plot_components(self, **kwargs):
-        """
-        Make a pretty plot of the components of the fit
-        """
-        import matplotlib.pyplot as plt
-
-        xarr = self.model_info['x']
-        yarr = self.model_info['y']
-        res = self.fit_result
-
-        if self.unit is u.Unit('arcsec'):
-            xlab = 'Offset (arcsec)'
-            #print(xlab)
-        elif self.unit is u.Unit('angstrom'):
-            xlab = r'$\lambda$'
+                obs = np.atleast_1d(lbdas)
+            #pmin, pmax = self.velwave.wav2pix(lbdas, nearest = True)
+            # if pmin < 0:
+            #     pmin = 0
+            # if pmax > self.shape[1]:
+            #     pmax = self.shape[1]
+            # lmin, lmax = self.velwave.pix2wav([pmin, pmax])
+        elif unit.lower() == 'pixel':
+            obs = self.velwave.pix2wav(lbdas)
         else:
-            xlab = 'Pixel'
+            raise Exception("unit must be pixel or angstrom")
+
+        # Get the wavelength array
+        # step = self.velwave.get_step()
+        # obs = np.arange(lmin, lmax+1, step)
+
+        # if vcorr is supplied, give it units; else set to 0
+        if vcorr is None:
+            vcorr = 0
+        vcorr *= u.km/u.s
+
+        # is the ref line in the list?
+        try:
+            for line, val in lines.items():
+                if ref == line:
+                    ref = val[0]
+                #    print('Our reference is ', ref)
+                #else:
+                #    print('our reference is,', ref)
+
+            #print(ref - obs)
+            # get the doppler shifted velocity
+
+            vrad = c.to('km/s') * (obs - ref) / ref
 
 
-        ax = plt.gca(**kwargs)
-        ax.scatter(xarr, yarr, s = 4)
-        components = res.eval_components(x = xarr)
-        for i, model in enumerate(self.model_info['model']):
-            ax.plot(xarr, components[f'm{i}'], label = f'm{i}_{model["type"]}')
+            # If vcorr is supplied, note that it is multiplicative, not additive
+            # so it should be expressed as:
+            # v_t = v_m + v_b + (v_b * v_m) / c
+            # see Wright & Eastman (2014)
+            # https://ui.adsabs.harvard.edu/abs/2014PASP..126..838W/abstract
+            vtrue = vrad + vcorr + (vcorr * vrad) / c
 
-        # set labels for the centroids?
-        for key, val in res.params.items():
-            if key.endswith('center'):
-                lab = str(np.round(val, 2)) + "''"
-                ax.axvline(val, ls = ':')
-                plt.text(val + 0.2, y = 0.8 * self.max(), s = lab,
-                        rotation = 90)
+            #return vtrue
 
-        # if ylabel is None:
-        #     ylabel = 'ADU'
-        # if xlabel is None:
-        #     xlabel = xlab
-        # ax.set_ylabel(ylabel)
-        # ax.set_xlabel(xlabel)
+        except TypeError:
+            return 'Line Not Found!'
+
+        # # estimate the uncertainties
+        # #   dv = c * dlbda/lbda
+        # # where lbda is the rest wavelength of the reference
+        # # and dlbda is HWHM
+        # step = self.velwave.get_step()
+        # dv = c.to('km/s') * (step / ref)
+
+        return vtrue
+
+    def get_flux(self, arc, wave):
+
+        lpix = self.velwave.wav2pix(wave, nearest= True)
+        apix = self.position.offset2pix(arc, nearest=True)
+
+        return self.data[apix, lpix]
