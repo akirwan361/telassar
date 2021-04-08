@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # compiled files
 *.py[cod]
 *.a
@@ -13,3 +14,17 @@ dist/
 build/
 setup/
 examples/.ipynb_checkpoints
+=======
+.env/
+__pycache__/
+*py[ocd]
+.ipynb_checkpoints
+bin/
+etc/
+include/
+lib/
+lib64/
+old/
+share/
+pyvenv.cfg
+>>>>>>> a6f29410a6b111d3a84027877c63102f4e4075e6
