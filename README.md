@@ -5,11 +5,7 @@ A clunky, hideous package for doing what I want and upsetting every real program
 
 Basic Bits
 -----
-<<<<<<< HEAD
 Can generate WCS information for a 2D slice either from a FITS file directly, or from a custom data array + header. No promises, though. At the very least it makes an attempt!
-=======
-Can generate WCS information for a 2D slice either from a FITS file directly, or from a custom data array + header. No promises, though. If the header is from a MUSE cube, it tries to sort out what's needed. If it's from, e.g. XShooter, then it makes an attempt. 
->>>>>>> a6f29410a6b111d3a84027877c63102f4e4075e6
 
 Usage
 -----
