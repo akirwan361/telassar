@@ -14,3 +14,5 @@ build/
 setup/
 examples/.ipynb_checkpoints
 
+.tox
+.cache
