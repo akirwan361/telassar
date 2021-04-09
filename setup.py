@@ -25,7 +25,7 @@ setup(
     keywords='astronomy, spectroscopy, astrophysics',  # Optional
     package_dir={'': 'telassar'},  # Optional
     packages=find_packages(where='telassar'),  # Required
-    python_requires='>=3.5',
+    python_requires='>=3.6',
     install_requires=[
         'astropy',
         'matplotlib',
