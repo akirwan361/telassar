@@ -15,6 +15,7 @@ from .plotter import (ImCoords, get_plot_norm, get_plot_extent,
 from .lines import lines
 
 from matplotlib.ticker import AutoMinorLocator, MaxNLocator
+from datetime import datetime
 
 class PVSlice(DataND):
 
@@ -273,36 +274,47 @@ class PVSlice(DataND):
         # set the extent of the data
         extent = get_plot_extent(self.position, self.velwave)
 
-        cax = ax.imshow(data, interpolation = 'nearest', origin = 'lower', norm =
-                        norm, extent = extent,**imshow_kws) #extent = extent,
+        cax = ax.imshow(data, interpolation='nearest', origin='lower',
+                        norm=norm, extent=extent, **imshow_kws)
 
         # format the axes and coordinates
         toggle_unit = True if extent is not None else False
         configure_axes(ax, self)
         ax.format_coord = ImCoords(res, data, toggle_unit)
-        fig.subplots_adjust(left = 0.15, right = 0.85)
+        fig.subplots_adjust(left=0.15, right=0.85)
 
         return cax
 
-    def plot_contours(self, figure = None, place = None, sig = None, mask = None,
-                      levels1 = None, levels2 = None, cmaps = None, fig_kws = None,
-                      plt_kws = None, emline = None):
+    def plot_contours(self, figure=None, place=None, sigma=None, mask=None,
+                      levels1=None, levels2=None, cmaps=None, fig_kws=None,
+                      plt_kws=None, emline=None):
         '''
         Generate a contour plot of the data. Useful for jet visualization!
 
         Parameters
         -----------
+        figure : None or `matplotlib.Figure` instance
+            if you have a figure instance you want to send this to, specify it
         sigma : None or float
             the basis for generating levels. a 3sigma value indicates detection
             of a source, we abbreviate it here to just sigma
+        place : int
+            if you have multiple subplot axes, you can send the image to one
+        mask : `np.ma.masked_array`
+            if you want to specify a mask to send when computing the background
+            levels, do it here
         levels1 : None or `np.ndarray` or list
             the contour levels for the jets
         levels2 : None or `np.ndarray` or list
             the contour levels for the background
-        cmap1 : None or `matplotlib.colors.Colormap`
-            the first colormap to pass to `plt.contour`
-        cmap2 : None or `matplotlib.colors.Colormap`
-            the second colormap to pass to `plt.contour`
+        cmaps : None or `matplotlib.colors.Colormap`
+            the list of colormaps to pass to `plt.contour`
+        emline : str
+            if your emission line of interest is in `lines.py` this will do
+            a pretty formatting and set it as the figure title
+
+        The `fig_kws` and `plt_kws` are just keyword dictionaries to pass to
+        the plotter
         '''
 
         if fig_kws is None:
@@ -312,13 +324,16 @@ class PVSlice(DataND):
         if emline is not None:
             if emline in lines.keys():
                 emis = lines[emline][2]
+            else:
+                emis = emline
 
         # default cmap colors
         colors = ['gist_gray', 'Oranges', 'gray']
         data = self.data.copy()
         # generate a sigma based on the data?
-        sig = get_background_rms(data, sigma=3., N=10, mask=None)
-
+        if sigma is None:
+            sigma = 3.
+        sig = get_background_rms(data, sigma=sigma, N=10, mask=None)
 
         if (levels1 is None) or (levels2 is None):
             lvls1, lvls2 = get_contour_levels(data, sig)
@@ -328,10 +343,10 @@ class PVSlice(DataND):
 
         cmaps = colors if cmaps is None else cmaps
 
-        if plt_kws is None:
+        # get an extent
+        if plt_kws is None:    
             ext = get_plot_extent(self.position, self.velwave)
             plt_kws = {'extent': ext}
-        #extent = get_plot_extent(self.position, self.velwave)
 
         # make the plot
         if figure is not None:
@@ -341,23 +356,21 @@ class PVSlice(DataND):
         else:
             fig, ax = plt.subplots(**fig_kws)
         if emis is not None:
-            ax.set_title(rf'{emis}', fontsize = 14)
+            ax.set_title(rf'{emis}', fontsize=14)
 
-        jet1 = ax.contour(data, levels=levels1, cmap=cmaps[0], **plt_kws)#extent=extent)
-        jet2 = ax.contourf(data, levels=levels1, cmap=cmaps[1], **plt_kws)#extent=extent)
-        bkgrd = ax.contourf(data, levels=levels2, cmap=cmaps[2], **plt_kws,#extent=extent,
+        jet1 = ax.contour(data, levels=levels1, cmap=cmaps[0], **plt_kws)
+        jet2 = ax.contourf(data, levels=levels1, cmap=cmaps[1], **plt_kws)
+        bkgrd = ax.contourf(data, levels=levels2, cmap=cmaps[2], **plt_kws,
                             alpha = 0.8)
 
         # format the canvas and coordinates
         configure_axes(ax, self)
-        toggle_unit = True #if extent is not None else False
+        toggle_unit = True
         ax.format_coord = ImCoords(self, data, toggle_unit)
-        #ax.xaxis
-        #fig.subplots_adjust(left = 0.15, right = 0.85)
 
         return ax
 
-    def moments(self, units = False):
+    def moments(self, units=False):
         '''
         Return [y_width, x_width] moments (order=1) of a 2D gaussian
         Essentially the same as the example from the SciPy Cookbook:
@@ -388,15 +401,41 @@ class PVSlice(DataND):
         #mom = np.array([ywidth, xwidth])
         return height, y, x, ywidth, xwidth
 
-    def to_fits(self):
+    def update_header(self):
+        '''Format a new header'''
+        hdr = self.header.copy()
+        hdr['date'] = (str(datetime.now()), 'Creation Date')
+        hdr['author'] = ('TELASSAR', 'Origin of the file')
 
-        hdr = fits.Header()
-        spec_hdr = self.velwave.wcs.to_header()
-        spat_hdr = self.position.wcs.to_header()
+        # if the data array has been altered, update the header
+        noff, nlbda = self.shape
+        crval1 = self.velwave.get_start()
+        crpix1 = 1.
+        # let's keep the starting pixel where the world coord is 0
+        crpix2 = round(self.position.offset2pix(0), 2)
+        crval2 = 0.
+        cdelt1 = round(self.velwave.get_step(), 2)
+        cdelt2 = round(self.position.get_step(), 2)
+
+        hdr['NAXIS1'] = (nlbda, "Length of data axis 1")
+        hdr['NAXIS2'] = (noff, "Length of data axis 2")
+        hdr['CRPIX1'] = (crpix1, "Pixel coordinate at reference point")
+        hdr['CRPIX2'] = (crpix2, "Pixel coordinate at reference point")
+        hdr['CRVAL1'] = (crval1, "Coordinate value at reference point")
+        hdr['CRVAL1'] = (crval2, "Coordinate value at reference point")
+        hdr['CDELT1'] = (cdelt1, "Coordinate increment at reference point")
+        hdr['CDELT2'] = (cdelt2, "Coordinate increment at reference point")
+        hdr.pop('CUNIT1')
+
+        return hdr
 
 
+    def to_fits(self, fname):
 
-        return
+        new_hdr = self.update_header()
+
+        hdul = fits.PrimaryHDU(data=self.data.data, header=new_hdr)
+        hdul.write("fname.fits")
 
     def radial_velocity(self, ref, lbdas, vcorr = None, unit = 'angstrom',
                         nearest = False):

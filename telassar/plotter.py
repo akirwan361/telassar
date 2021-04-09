@@ -75,18 +75,17 @@ def get_plot_extent(wcs_obj, spec_obj):
     '''
     Assuming a `PVSlice.world` object is passed, get the extents for plotting
     '''
-    xmin = spec_obj.get_start()-0.5
-    xmax = spec_obj.get_stop()+0.5
-    ymin = wcs_obj.get_start()-0.5
-    ymax = wcs_obj.get_stop()+0.5
+    xmin = spec_obj.get_start()
+    xmax = spec_obj.get_stop()
+    ymin = wcs_obj.get_start()
+    ymax = wcs_obj.get_stop()
     
-    print(spec_obj.wcs.wcs.ctype[0])
     if spec_obj.wcs.wcs.ctype[0] == 'VELO':
         xmin /= 1000
         xmax /= 1000
     return xmin, xmax, ymin, ymax
 
-def get_background_rms(data, sigma = 3, N = 10, mask = None):
+def get_background_rms(data, sigma=3, N=10, mask = None):
     '''
     Get the background rms/sigma value of the data. We consider a
     3sigma value as the detection limit, so it is useful to scale
@@ -110,7 +109,7 @@ def get_background_rms(data, sigma = 3, N = 10, mask = None):
 
     from astropy.stats import SigmaClip
     from photutils import Background2D, MedianBackground, StdBackgroundRMS
-
+    
     # get a boxsize. sides must be integer values, so if there's a
     # remainder then set an edge_method keyword
     ny, nx = data.shape
@@ -147,15 +146,18 @@ def get_background_rms(data, sigma = 3, N = 10, mask = None):
 
     #print(ndata.shape)
     # get the background RMS. This calls `photutils.Background2D`
+    # for now it doesn't work the way I thought because I don't
+    # know what I'm doing, but whatever
     sigma_clip = SigmaClip(sigma=sigma)
     bkg_estimator = MedianBackground()
     rms_estimator = StdBackgroundRMS()
-    bkg = Background2D(ndata, (sy, sx), filter_size = (5,5), sigma_clip = sigma_clip,
-                    bkg_estimator = bkg_estimator, bkgrms_estimator = rms_estimator,
-                    mask = mask, edge_method = edge_method)
+    bkg = Background2D(ndata, (sy, sx), filter_size=(5,5), sigma_clip=sigma_clip,
+                    bkg_estimator=bkg_estimator, bkgrms_estimator=rms_estimator,
+                    mask=mask, edge_method=edge_method)
 
     sigrms = bkg.background_rms_median
 
+#    sigrms = sigma_clip(ndata, axis=0).mean()
     return sigrms
 
 def get_contour_levels(data, sigma):
@@ -177,20 +179,18 @@ def get_contour_levels(data, sigma):
     # get min and max of data
     dmax = ndata.max()
     dmin = ndata.min()
-
     # get upper and lower contour levels
     l0 = 0.01697583 * dmax
     l1 = 1. * dmax
-
+    
     # get upper and lower exponent bounds
     n0 = expo(l0, sigma)
     n1 = expo(l1, sigma)
-
     # get range of exponents. by default, ,there are 7 levels
     xp = np.linspace(n0, n1, 7)
 
     # get primary and background contour levels
-    lvls1 = (4/3) * sigma * np.sqrt(2)**xp
+    lvls1 = (4/3) * (sigma) * np.sqrt(2)**xp
     lvls2 = np.linspace(dmin, 0.8 * sigma, 9)
 
     #scale = np.array([0.01697583, 0.03395166, 0.06790333, 0.13580666,

@@ -197,8 +197,8 @@ class SpatLine(DataND):
 
         print("We're running a test to send to `fitter.py`")
 
-        my_model = ModelFit(self)
-        result = my_model.fit_model(model_list, coords = coords, mode = 'components',
-                      plot = plot, densify = 10, emline=None, fig_kws=None, ax_kws=None)
+        my_model = Modeller(self)
+        result = my_model.fit_model(model_list, coords=coords, mode='components',
+                      plot=plot, densify=10, emline=None, fig_kws=None, ax_kws=None)
 
-        print(my_model.fit_statistics())
+        print(my_model.get_info())
