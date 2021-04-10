@@ -13,8 +13,8 @@ class DataND:
     _is_spectral = False
     _is_spatial = False
 
-    def __init__(self, filename = None, data = None, mask = False, dtype = None,
-                 ext = None, header = None, unit = None, wcs = None, spec=None,
+    def __init__(self, filename=None, data=None, mask=False, dtype=None,
+                 ext=None, header=None, unit=None, wcs=None, spec=None,
                  **kwargs):
 
         self._logger = logging.getLogger(__name__)
@@ -23,12 +23,10 @@ class DataND:
         self.ext = ext
         self._data = data
         self._dtype = dtype
-        self.header = header or None#fits.Header()
-        #self.unit = u.Unit(unit)
+        self.header = header or None
         self.position = None
         self.velwave = None
         self._skywave = None
-
 
         if (filename is not None) and (data is None):
             # read in a fits file
@@ -50,11 +48,9 @@ class DataND:
 
             self._mask = ~(np.isfinite(self._data))
             self.position = Position(self.header)
-            #print(self.position.info())
             self.velwave = VelWave(self.header)
 
         else:
-            #print("Data else block")
             if mask is ma.nomask:
                 self._mask = mask
 
@@ -63,39 +59,31 @@ class DataND:
                     self._dtype = np.float64
 
                 if isinstance(data, ma.MaskedArray):
-                    self._data = np.array(data.data, dtype = np.float64,
-                                          copy = True)
+                    self._data = np.array(data.data, dtype=np.float64,
+                                          copy=True)
                     if data.mask is ma.nomask:
                         self._mask = data.mask
                     else:
-                        self._mask = np.array(data.mask, dtype = bool,
-                                              copy = True)
+                        self._mask = np.array(data.mask, dtype=bool,
+                                              copy=True)
                 else:
-                    self._data = np.array(data, dtype = np.float64,
-                                          copy = True)
+                    self._data = np.array(data, dtype=np.float64,
+                                          copy=True)
                     if mask is None or mask is False:
                         self._mask = ~(np.isfinite(data))
                     elif mask is True:
-                        self._mask = np.ones(shape = data.shape, dtype = bool)
+                        self._mask = np.ones(shape=data.shape, dtype=bool)
                     elif mask is not ma.nomask:
-                        self._mask = np.array(mask, dtype = bool, copy = True)
+                        self._mask = np.array(mask, dtype=bool, copy=True)
 
             self.flux_unit = u.Unit(u.dimensionless_unscaled)
 
-            # commenting out for now: try the `set_coords` method and
-            # see what troubleshooting needs doing
-            #if wcs is not None:
-            #    self.position = wcs
-            #if spec is not None:
-            #    self.velwave = spec
         # this didn't work like I thought, hopefully there are no issues
-        self.set_coords(wcs = wcs,#kwargs.pop('wcs', None),
-                        spec = spec)#kwargs.pop('velwave', None))
-
+        self.set_coords(wcs=wcs, spec=spec)
 
     @property
     def data(self):
-        res = ma.MaskedArray(self._data, mask = self._mask, copy = False)
+        res = ma.MaskedArray(self._data, mask=self._mask, copy=False)
         return res
 
     @data.setter
@@ -109,9 +97,8 @@ class DataND:
 
     @property
     def shape(self):
-        #return tuple(self.header['NAXIS%d' % i]
-        #             for i in range(self.ndim, 0, -1))
         return self._data.shape
+
     @property
     def ndim(self):
         if self._data is not None:
@@ -130,10 +117,10 @@ class DataND:
         if val is ma.nomask:
             self._mask = val
         else:
-            self._mask = np.asarray(val, dtype = bool)
+            self._mask = np.asarray(val, dtype=bool)
 
     @classmethod
-    def new_object(cls, object, data = None, unit = None, wcs = None, spec = None):
+    def new_object(cls, object, data=None, unit=None, wcs=None, spec=None):
         '''
         Copy attributes from one object into a new instance
         Needs testing...
@@ -153,10 +140,8 @@ class DataND:
             except AttributeError:
                 unit = None
 
-        kwargs = dict(filename = object.filename, data = data, unit = unit,
-                      ext = object.ext, header = object.header.copy())#,
-                      #world = object.world)
-
+        kwargs = dict(filename=object.filename, data=data, unit=unit,
+                      ext=object.ext, header=object.header.copy())
 
         try:
             kwargs['wcs'] = object.position
@@ -167,8 +152,6 @@ class DataND:
         return cls(**kwargs)
 
     def copy(self):
-        #res = deepcopy(self)
-        #return res
         return self.__class__.new_object(self)
 
     def __repr__(self):
@@ -206,7 +189,7 @@ class DataND:
         spec_unit = ('no unit' if self.velwave is None else str(self.velwave.unit) )
 
         log('%s (%s, %s)', data, spat_unit, spec_unit.replace(' ', ''))
-        #print('%s (%s,  %s)' % (data, spat_unit, spec_unit))
+
         if self.position is None:
             log('No world coordinates installed')
         else:
@@ -220,7 +203,8 @@ class DataND:
     def __getitem__(self, item):
 
         '''
-        Return a sliced object
+        Return a sliced object. 
+        NOTE: This doesn't work the way I want
         '''
         data = self._data[item]
         mask = self._mask
@@ -295,14 +279,13 @@ class DataND:
                 mask = mask.reshape(reshape)
 
         return self.__class__(
-            filename = filename, data = data, mask = mask, dtype = self._dtype,
-            ext = self.ext, header = self.header, wcs = wcs, spec = spec)
+            filename=filename, data=data, mask=mask, dtype=self._dtype,
+            ext=self.ext, header=self.header, wcs=wcs, spec=spec)
 
     def min(self):
         '''
         return minimum unmasked value in the data
         '''
-
         res = ma.min(self.data)
         return res
 
@@ -313,7 +296,7 @@ class DataND:
         res = ma.max(self.data)
         return res
 
-    def set_coords(self, wcs = None, spec = None):
+    def set_coords(self, wcs=None, spec=None):
         """
         Set the wcs info for the object. Hopefully this sorts the issue
         of reducing 2D PV data to 1D spatial/spectral data?
@@ -331,8 +314,8 @@ class DataND:
         if len(self.shape) == 2:
             try:
                 if (wcs is not None) and (spec is not None):
-                    self.position = wcs#.copy()
-                    self.velwave = spec#.copy()
+                    self.position = wcs
+                    self.velwave = spec
                 elif (wcs is None or spec is None) and (hdr is not None):
                     self.position = Position(hdr)
                     self.velwave = VelWave(hdr)
@@ -347,7 +330,7 @@ class DataND:
             if self._is_spatial:
                 try:
                     if wcs is not None:
-                        self.position = wcs#.copy()
+                        self.position = wcs
                     elif wcs is None and hdr is not None:
                         self.position = Position(hdr)
                 except Exception:
@@ -357,34 +340,10 @@ class DataND:
             if self._is_spectral:
                 try:
                     if spec is not None:
-                        self.velwave = spec#.copy()
+                        self.velwave = spec
                     elif spec is None and hdr is not None:
                         self.velwave = VelWave(hdr)
                 except Exception:
                     self._logger.warning("Unable to install spatial "
                                         "coordinates", exc_info=True)
                     self.position = None
-
-            #         #try:
-            #     #if hdr is not None:
-            #     #    self.position = Position(hdr)
-            #     #elif hdr is None and wcs is not None:
-            #             self.position = wcs.copy()
-            #         except Exception:
-            #             self._logger.warning("Unable to install spatial "
-            #                                 "coordinates", exc_info=True)
-            #             self.position = None
-            # else:
-            #     self.position = None
-            # if self._is_spectral and velwave is not None:
-            #     try:
-            #     #if hdr is not None:
-            #     #    self.velwave = VelWave(hdr)
-            #     #elif hdr is None and velwave is not None:
-            #         self.velwave = velwave.copy()
-            #     except Exception:
-            #         self._logger.warning("Unable to install spectral "
-            #                             "coordinates", exc_info=True)
-            #         self.velwave = None
-            # else:
-            #     self.velwave = None

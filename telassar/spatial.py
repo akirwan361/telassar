@@ -42,13 +42,9 @@ class SpatLine(DataND):
             if event.inaxes is not None:
                 xc, yc = event.xdata, event.ydata
                 try:
-                    #i = self.world.pix2val(xc)
                     i = self.position.offset2pix(xc, nearest = True)
                     x = self.position.pix2offset(i)
-                    #event.canvas.toolbar.set_message(
                     event.canvas.toolbar.set_message(
-                        # rf'xc = {xc:0.2f} yc = {yc:0.2f} = {x:0.1f} k = {i} '
-                        # rf'data = {self._data[i]:0.2f}' )
                         'xc=%g yc=%g i=%d dist=%g data=%g' %
                         (xc, yc, i, x, self._data[i]))
                 except Exception as e:
@@ -56,32 +52,31 @@ class SpatLine(DataND):
                     pass
 
         def on_click(event):
-            #global ix, iy
+            
             xc, yc = event.xdata, event.ydata
-            # ix, iy = event.xdata, event.ydata
+            
             try:
                 i = self.position.offset2pix(xc, nearest = True)
                 x = self.position.pix2offset(i)
-            #print(f'x={ix}, y={iy}')
                 data = self._data[i]
                 print(f'arc={x}, flux={data}')
                 coords.append((x, data))
-            #coords.append((ix, iy))
+            
             except Exception as e:
                 print(e)
                 pass
 
         def on_key(event):
-            if event.key == 'a':#'f':#'ctrl+p':
+            
+            if event.key == 'a':
                 self._logger.info('Enabling point-selection mode...')
                 cid = fig.canvas.mpl_connect('button_press_event', on_click)
-            if event.key == 'q': #'ctrl+q':
+            if event.key == 'q': 
                 self._logger.info("Point-selection mode disabled.")
                 cid = fig.canvas.mpl_connect('button_press_event', on_click)
                 fig.canvas.mpl_disconnect(cid)
-                #plt.disconnect(cid)
 
-        fig, ax = plt.subplots(figsize = (9, 5))
+        fig, ax = plt.subplots(figsize=(9, 5))
         xarr = self.position.pix2offset()
         data = self.data.copy()
         kwargs.update({'drawstyle' : 'steps-mid', 'linewidth': 1})
@@ -97,7 +92,7 @@ class SpatLine(DataND):
 
         self._coords = coords
 
-    def integrate(self, amin = None, amax = None, unit = None):
+    def integrate(self, amin=None, amax=None, unit=None):
         """
         This will integrate the (non-corrected) flux over a spectral range using
         a simple Simpson's Rule.
@@ -133,7 +128,6 @@ class SpatLine(DataND):
         if amin is None:
             i1 = 0
             amin = self.position.pix2offset(-0.5)
-            #print(f'lmin = {lmin}')
         else:
             if unit is None:
                 i1 = amin
@@ -201,4 +195,4 @@ class SpatLine(DataND):
         result = my_model.fit_model(model_list, coords=coords, mode='components',
                       plot=plot, densify=10, emline=None, fig_kws=None, ax_kws=None)
 
-        print(my_model.get_info())
+        print(my_model.info())

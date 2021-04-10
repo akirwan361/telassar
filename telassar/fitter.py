@@ -334,20 +334,20 @@ class Modeller:
             if mode.lower() == 'components':
                 components = result.eval_components(x = x_dense)
                 for i, model in enumerate(self.model_info['model']):
-                    #ax.plot(self.model_info['x'], components[f'm{i}'], label = f'm{i}_{model["type"]}')
-                    ax.plot(x_dense, components[f'm{i}'], #label = f'm{i}_{model["type"]}',
-                            **ax_kws)
+                    ax.plot(x_dense, components[f'm{i}'], **ax_kws)
                 ax.set_xlabel(xlab)
                 ax.set_ylabel(r'Flux ($F_{\lambda}$)')
+
                 if emis:
                     ax.set_title(emis + arm)
+
                 # make centroid labels?
                 for key, val in result.params.items():
                     if key.endswith('center'):
                         lab = str(np.round(val, 2)) + self.unit.to_string('latex')
                         ax.axvline(val, ls = ':')
                         plt.text(val + text_offset, y = 0.8 * self.model_info['y'].max(),
-                                 s = r' %s'%lab, rotation = 90)
+                                 s=r' %s'%lab, rotation=90)
                 plt.connect('motion_notify_event', on_move)
                 #ax.invert_xaxis(invert_x)
                 ax.set_xlim(x_start, x_stop)
@@ -356,9 +356,7 @@ class Modeller:
             if mode.lower() == 'residuals':
                 print('Do something')
 
-            #fit_statistics()
-
-    def get_info(self, convert = True):
+    def get_info(self, convert=True):
 
         """
         get the basic information about the fit, ie the centroid and HWHM. this
@@ -370,6 +368,7 @@ class Modeller:
         center = []
         fwhm = []
         sigma = []
+
         # get the mimimum possible wavelength step of instrument
         minstep = self.wcs.get_step()
         for key, val in self.fit_result.params.items():
@@ -395,9 +394,7 @@ class Modeller:
         xunit = str(self.unit)
         yunit = ('no unit' if self.flux is None else str(self.flux))
 
-
         log('%s (%s, %s)', data, xunit, yunit)
-        #print('%s (%s,  %s)' % (data, spat_unit, spec_unit))
         self.wcs.info()
 
         # has a fit been made?
@@ -405,6 +402,5 @@ class Modeller:
             center, hwhm = np.round(self.get_info(), 2)
             log("Fit Info (in %s)" % self.unit)
             log("%8s %8s" % ('Centroid', 'HWHM'))
-            #log("(%s) (%s)" % (self.unit, self.unit))
             for c, h in zip(center, hwhm):
                 log("%8s %8s" % (c, h))

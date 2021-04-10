@@ -49,7 +49,7 @@ class PVSlice(DataND):
 
 
 
-    def spectral_window(self, vmin, vmax=None, unit = None):
+    def spectral_window(self, vmin, vmax=None, unit=None):
         '''
         Get a small view of the velocity/wavelength range.
 
@@ -80,11 +80,11 @@ class PVSlice(DataND):
 
         else:
             pmin = max(0, self.velwave.wav2pix(vmin, nearest=True))
-            pmax = min(self.shape[1], self.velwave.wav2pix(vmax, nearest = True) + 1)
+            pmax = min(self.shape[1], self.velwave.wav2pix(vmax, nearest=True) + 1)
 
         return self[:, pmin:pmax]
 
-    def spatial_window(self, amin, amax = None, unit = None):
+    def spatial_window(self, amin, amax=None, unit=None):
         '''
         Return a view of a spatial window
 
@@ -117,13 +117,11 @@ class PVSlice(DataND):
 
         else:
             pmin = max(0, self.position.offset2pix(amin, nearest=True))
-            #print(pmin)
-            pmax = min(self.shape[0], self.position.offset2pix(amax, nearest = True) + 1)
-            #print(pmax)
+            pmax = min(self.shape[0], self.position.offset2pix(amax, nearest=True) + 1)
 
         return self[pmin:pmax, :]
 
-    def spatial_profile(self, arc, wave, spat_unit = False, spec_unit = False):
+    def spatial_profile(self, arc, wave, spat_unit=False, spec_unit=False):
 
         """
         Extract a 1D spatial profile from a position-velocity slice.
@@ -171,9 +169,9 @@ class PVSlice(DataND):
 
         res = self.data[sx, sy].sum(axis=1)
         wcs = self.position[sx]
-        return SpatLine(data = res, wcs = wcs, unit = self.position.unit)
+        return SpatLine(data=res, wcs=wcs, unit=self.position.unit)
 
-    def spectral_profile(self, wave, arc, spec_unit = False, spat_unit = False):
+    def spectral_profile(self, wave, arc, spec_unit=False, spat_unit=False):
 
         """
         Extract a 1D spectral profile from a position-velocity slice
@@ -220,10 +218,10 @@ class PVSlice(DataND):
         res = self.data[sx, sy].sum(axis=0)
         spec = self.velwave[sy]
 
-        return SpecLine(data = res, spec = spec, unit = self.velwave.unit)
+        return SpecLine(data=res, spec=spec, unit=self.velwave.unit)
 
-    def plot(self, scale = 'linear', ax = None, fig_kws = None, imshow_kws = None,
-             vmin = None, vmax = None, zscale = None, emline = None):
+    def plot(self, scale='linear', ax=None, fig_kws=None, imshow_kws=None,
+             vmin=None, vmax=None, zscale=None, emline=None):
         '''
         This function generates an simple plot of the desired data.
 
@@ -266,12 +264,11 @@ class PVSlice(DataND):
         data = self.data.copy()
 
         if ax is None:
-            #fig, ax = plt.subplots(subplot_kw = ax_kws)
             fig, ax = plt.subplots(**fig_kws)
 
         # get a norm
-        norm = get_plot_norm(data, vmin = vmin, vmax = vmax, zscale = zscale,
-                             scale = scale)
+        norm = get_plot_norm(data, vmin=vmin, vmax=vmax, zscale=zscale,
+                             scale=scale)
         # set the extent of the data
         extent = get_plot_extent(self.position, self.velwave)
 
@@ -430,7 +427,6 @@ class PVSlice(DataND):
 
         return hdr
 
-
     def to_fits(self, fname):
 
         new_hdr = self.update_header()
@@ -438,13 +434,12 @@ class PVSlice(DataND):
         hdul = fits.PrimaryHDU(data=self.data.data, header=new_hdr)
         hdul.write("fname.fits")
 
-    def radial_velocity(self, ref, lbdas, vcorr = None, unit = 'angstrom',
-                        nearest = False):
+    def radial_velocity(self, ref, lbdas, vcorr=None, unit='angstrom',
+                        nearest=False):
         '''
-        Compute the uncorrected radial velocity of an emission range based on some
-        reference emission and wavelength array. Test "obj" to see if it's just an
-        `mpdaf.obj.Cube` object, and if so extract the wavelength data; if "obj" is
-        a wavelength array, then just use that
+        Compute the radial velocity of an emission range based on some
+        reference emission and wavelength array.
+
         Parameters
         -----------
         ref : float or str
@@ -468,38 +463,25 @@ class PVSlice(DataND):
                 obs = self.velwave.pix2wav(px)
             else:
                 obs = np.atleast_1d(lbdas)
-            #pmin, pmax = self.velwave.wav2pix(lbdas, nearest = True)
-            # if pmin < 0:
-            #     pmin = 0
-            # if pmax > self.shape[1]:
-            #     pmax = self.shape[1]
-            # lmin, lmax = self.velwave.pix2wav([pmin, pmax])
         elif unit.lower() == 'pixel':
             obs = self.velwave.pix2wav(lbdas)
         else:
             raise Exception("unit must be pixel or angstrom")
 
         # Get the wavelength array
-        # step = self.velwave.get_step()
-        # obs = np.arange(lmin, lmax+1, step)
 
         # if vcorr is supplied, give it units; else set to 0
         if vcorr is None:
             vcorr = 0
-        vcorr *= u.km/u.s
+        vcorr *= u.km / u.s
 
         # is the ref line in the list?
         try:
             for line, val in lines.items():
                 if ref == line:
                     ref = val[0]
-                #    print('Our reference is ', ref)
-                #else:
-                #    print('our reference is,', ref)
 
-            #print(ref - obs)
             # get the doppler shifted velocity
-
             vrad = c.to('km/s') * (obs - ref) / ref
 
 
@@ -509,8 +491,6 @@ class PVSlice(DataND):
             # see Wright & Eastman (2014)
             # https://ui.adsabs.harvard.edu/abs/2014PASP..126..838W/abstract
             vtrue = vrad + vcorr + (vcorr * vrad) / c
-
-            #return vtrue
 
         except TypeError:
             return 'Line Not Found!'
@@ -526,7 +506,7 @@ class PVSlice(DataND):
 
     def get_flux(self, arc, wave):
 
-        lpix = self.velwave.wav2pix(wave, nearest= True)
+        lpix = self.velwave.wav2pix(wave, nearest=True)
         apix = self.position.offset2pix(arc, nearest=True)
 
         return self.data[apix, lpix]
@@ -554,11 +534,9 @@ class PVSlice(DataND):
             if path.exists():
                 for emis, l1, l2 in parse_badlines(path.name):
                     skylines[emis] = [l1, l2]
-                #self.skylines = skylines
             else:
                 self._logger.warning("No badlines.dat file found!")
                 self._logger.warning("Unable to register skylines.")
-                #self.skylines = None
         else:
             # Does it look like a UNIX path?
             if badlines.startswith("~"):
@@ -572,7 +550,6 @@ class PVSlice(DataND):
             else:
                 self._logger.warning("No badlines.dat file found!")
                 self._logger.warning("Unable to register skylines.")
-                #self.skylines = None
             if path:
                 for emis, l1, l2 in parse_badlines(path):
                     skylines[emis] = [l1, l2]
