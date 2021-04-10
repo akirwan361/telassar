@@ -13,6 +13,7 @@ from .plotter import (ImCoords, get_plot_norm, get_plot_extent,
                       get_background_rms, get_contour_levels,
                       configure_axes)
 from .lines import lines
+from .tools import parse_badlines
 
 from matplotlib.ticker import AutoMinorLocator, MaxNLocator
 from datetime import datetime
@@ -529,3 +530,56 @@ class PVSlice(DataND):
         apix = self.position.offset2pix(arc, nearest=True)
 
         return self.data[apix, lpix]
+
+    def register_skylines(self, badlines=None):
+        '''
+        Emulating IRAF a bit here: register a skylines file to mask
+        specified regions. if no file is specified, this will look
+        in the working direcetory and try to find one with the name
+        `badlines.dat`
+        '''
+        import pathlib
+
+        # instantiate an empty dictionary
+        skylines = {}
+
+        # look only in the current working directory
+        workdir = pathlib.Path.cwd()
+
+        # if no data file is given, look for it
+        if badlines is None:
+            look_for = "badlines.dat"
+            path = workdir / look_for
+
+            if path.exists():
+                for emis, l1, l2 in parse_badlines(path.name):
+                    skylines[emis] = [l1, l2]
+                #self.skylines = skylines
+            else:
+                self._logger.warning("No badlines.dat file found!")
+                self._logger.warning("Unable to register skylines.")
+                #self.skylines = None
+        else:
+            # Does it look like a UNIX path?
+            if badlines.startswith("~"):
+                badlines = pathlib.Path(badlines).expanduser()
+
+            # look for it in the working directory first
+            if (workdir / badlines).exists():
+                path = workdir / badlines
+            elif badlines.exists():
+                path = badlines
+            else:
+                self._logger.warning("No badlines.dat file found!")
+                self._logger.warning("Unable to register skylines.")
+                #self.skylines = None
+            if path:
+                for emis, l1, l2 in parse_badlines(path):
+                    skylines[emis] = [l1, l2]
+
+        self._skylines = skylines if skylines else None
+
+    def unregister_skylines(self):
+        '''Remove skyline info from the instance'''
+        self._logger.warning("Removing skyline info!")
+        self._skylines = None

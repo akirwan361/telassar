@@ -13,6 +13,6 @@ dist/
 build/
 setup/
 examples/.ipynb_checkpoints
-
+.ipynb_checkpoints/
 .tox
 .cache

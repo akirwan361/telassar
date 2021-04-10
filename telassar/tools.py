@@ -163,7 +163,7 @@ def read_modlist_from_csv(fname):
     modlist = collections.defaultdict(list)
 
     with open(fname) as f:
-        reader = csv.DictReader(f, delimiter = ',')
+        reader = csv.DictReader(f, delimiter=',')
         for row in reader:
             # Are some columns longer than others? Skip the blank cells
             if any(row[key] in (None, '') for key in row):
@@ -173,3 +173,14 @@ def read_modlist_from_csv(fname):
                 modlist[key].append(row[key][0])
 
     return modlist
+
+
+def parse_badlines(fname):
+    '''
+    A convenience function to parse and install skyline information
+    from a data file
+    '''
+    with open(fname) as f:
+        for line in f.readlines():
+            l1, l2, emis = line.strip().split()
+            yield emis, l1, l2

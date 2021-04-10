@@ -27,6 +27,7 @@ class DataND:
         #self.unit = u.Unit(unit)
         self.position = None
         self.velwave = None
+        self._skywave = None
 
 
         if (filename is not None) and (data is None):
@@ -197,10 +198,10 @@ class DataND:
         log = self._logger.info
         shape_str = (' x '.join(str(x) for x in self.shape)
                     if self.shape is not None else 'no shape')
-        log('%s %s (%s)', shape_str, self.__class__.__name__,
+        log('%s (%s)', self.__class__.__name__,
             self.filename or 'no name')
 
-        data = ('no data' if self._data is None else f'.data({shape_str})')
+        data = ('no data' if self._data is None else f'Data shape: ({shape_str})')
         spat_unit = ('no unit' if self.position is None else str(self.position.unit))
         spec_unit = ('no unit' if self.velwave is None else str(self.velwave.unit) )
 
