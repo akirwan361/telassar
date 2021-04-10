@@ -12,7 +12,12 @@ __pycache__
 dist/
 build/
 setup/
+<<<<<<< HEAD
 examples/.ipynb_checkpoints
 .ipynb_checkpoints/
+=======
+examples/.ipynb_checkpoints/
+
+>>>>>>> master
 .tox
 .cache
