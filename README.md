@@ -42,9 +42,7 @@ Not a lot here at the moment, but a few things are being included:
   * Utilize [LMFit-py](https://lmfit.github.io/lmfit-py/) modeling options for fitting profiles; supports multi-curve fits!
   * The code is there, I just need to sort out a better way to implement it
 
-=======
 TODO
 -----
-- Add [LMFit-py](https://lmfit.github.io/lmfit-py/) modeling options for fitting profiles
 - Expand spatial/spectral profile class functionality (ie plotting, fitting, and integration)
 - Learn how to do everything properly.
