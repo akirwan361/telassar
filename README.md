@@ -28,7 +28,14 @@ For quick data viewing, a contour plot is easily generated:
 my_file.plot_contours()
 ```
 
-Some further customization can be done with the plots; check out the notebook for some of those examples.
+Some further customization can be done with the plots; check out the notebook in the `examples` folder for a better idea.
+
+
+Features
+---------
+Not a lot here at the moment, but a few things are being included:
+
+- Registering/unregistering skyline emissions;
 
 =======
 TODO
