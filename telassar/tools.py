@@ -183,4 +183,4 @@ def parse_badlines(fname):
     with open(fname) as f:
         for line in f.readlines():
             l1, l2, emis = line.strip().split()
-            yield emis, l1, l2
+            yield emis, float(l1), float(l2)

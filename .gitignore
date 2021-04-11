@@ -12,12 +12,12 @@ __pycache__
 dist/
 build/
 setup/
-<<<<<<< HEAD
+
+# sandbox/debugging crap
 examples/.ipynb_checkpoints
 .ipynb_checkpoints/
-=======
 examples/.ipynb_checkpoints/
+workspace.ipynb
 
->>>>>>> master
 .tox
 .cache

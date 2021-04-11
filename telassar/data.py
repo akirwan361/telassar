@@ -26,7 +26,7 @@ class DataND:
         self.header = header or None
         self.position = None
         self.velwave = None
-        self._skywave = None
+        self.skylines= None
 
         if (filename is not None) and (data is None):
             # read in a fits file
@@ -347,3 +347,8 @@ class DataND:
                     self._logger.warning("Unable to install spatial "
                                         "coordinates", exc_info=True)
                     self.position = None
+
+    def unmask(self):
+        '''Unmask all but invalid data'''
+        if self.mask is not ma.nomask:
+            self._mask = ~np.isfinite(self._data)
