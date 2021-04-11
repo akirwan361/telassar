@@ -1,7 +1,7 @@
 import logging
 
 
-def get_logger(name='telassar', level='DEBUG',
+def get_logger(name='telassar', level='DEBUG', stream=None,
                msg_fmt='[%(levelname)s] %(message)s', datefmt=None):
 
     logger = logging.getLogger(name)
@@ -9,7 +9,7 @@ def get_logger(name='telassar', level='DEBUG',
 
     logger.handlers.clear()
 
-    stream = logging.StreamHandler(stream=None)
+    stream = logging.StreamHandler(stream)
     stream.setLevel(level)
     formatter = logging.Formatter(msg_fmt, datefmt=datefmt)
     stream.setFormatter(formatter)
