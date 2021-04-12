@@ -194,15 +194,15 @@ class Modeller:
 
             if func['type'] in ['GaussianModel', 'LorentzianModel',
                                 'VoigtModel']:
-                model.set_param_hint('amplitude', value = 1.1*peak,
-                                      min = 0.5 * peak)
-                model.set_param_hint('center', value = ctr, min = ctr-5,
-                                      max = ctr + 5)
-                model.set_param_hint('sigma', min = 1e-6, max = 10) #max=30
+                model.set_param_hint('amplitude', value=1.1*peak,
+                                      min=0.5 * peak)
+                model.set_param_hint('center', value=ctr, min=ctr - 2,
+                                      max=ctr + 2)
+                model.set_param_hint('sigma', min=1e-6, max=10) #max=30
                 default_params = {
-                        prefix+'center' : ctr,
-                        prefix+'height' : peak,
-                        prefix+'sigma' : 5
+                        prefix+'center': ctr,
+                        prefix+'height': peak,
+                        prefix+'sigma': 5
                     }
             else:
                 raise NotImplementedError(f"Model {func['type']} not implemented yet")
@@ -221,9 +221,9 @@ class Modeller:
 
         return composite_model, params
 
-    def fit_model(self, model_list, coords = None, mode = 'components', plot = False,
-                  densify = 10, invert_x = False, emline=None, fig_kws=None,
-                  ax_kws=None): #unit=True):
+    def fit_model(self, model_list, coords=None, mode='components', plot=False,
+                  densify=10, invert_x=False, emline=None, fig_kws=None,
+                  ax_kws=None):
 
         """
         Fit a model or composite model based on user specified parameters.
@@ -253,9 +253,9 @@ class Modeller:
         # if coords are given, format them and override the class attribute
 
         if fig_kws is None:
-            fig_kws = {'figsize' : (9, 5)}
+            fig_kws = {'figsize': (9, 5)}
         if ax_kws is None:
-            ax_kws = {'drawstyle' : 'steps-mid', 'linewidth': 1}
+            ax_kws = {'drawstyle': 'steps-mid', 'linewidth': 1}
 
         # Get the emission line for the title?
         if emline is not None:
@@ -268,7 +268,7 @@ class Modeller:
 
         if coords is not None:
             try:
-                coords = np.asarray(coords, dtype = np.float64)
+                coords = np.asarray(coords, dtype=np.float64)
             except ValueError:
                 print("Coords must be numeric")
             self._coords = coords
@@ -277,84 +277,27 @@ class Modeller:
                 coords = self._coords
             except Exception:
                 print("No initial parameters supplied! Estimating from data...")
-                #pass
 
         # make the model
         model_data, params = self.make_model(model_list=model_list, coords=coords)
         xarr = self.model_info['x']
         yarr = self.model_info['y']
 
-        result = model_data.fit(yarr, params, x = xarr)
+        result = model_data.fit(yarr, params, x=xarr)
         self.fit_result = result
 
         # make a dense array for curve plotting
         x_dense = np.arange(xarr[0], xarr[-1], (xarr[1] - xarr[0])/densify)
 
         if plot:
-            if not plt.get_fignums():
-                fig, ax = plt.subplots(**fig_kws)
-            else:
-                ax = plt.gca()
-            #kwargs.update({'drawstyle' : 'steps-mid', 'linewidth': 1})
-            if ax.lines:
-                pass
-            elif ax.collections:
-                pass
-            else:
-                ax.plot(self.model_info['x'], self.model_info['y'], **ax_kws)
-
-            xtype = self.wcs.wcs.wcs.ctype[0]
-            xlab = f'{xtype} ({self.unit.to_string("latex")})'
-            if invert_x:
-                text_offset = -0.5
-                x_start = self.wcs.get_stop()
-                x_stop = self.wcs.get_start()
-                arm = str(' (Blue)')
-            else:
-                text_offset = 0.5
-                x_start = self.wcs.get_start()
-                x_stop = self.wcs.get_stop()
-                arm = str(' (Red)')
-            # Handle motion events?
-            def on_move(event):
-                if event.inaxes is not None:
-                    xc, yc = event.xdata, event.ydata
-                    try:
-                        i = self.wcs2pix(xc, nearest = True)
-                        x = self.pix2wcs(i)
-                        event.canvas.toolbar.set_message(
-                            'xc=%g yc=%g i=%d dist=%g data=%g' %
-                            (xc, yc, i, x, self._data[i]))
-                    except Exception as e:
-                        print(e) # for debug
-                        pass
-
-
-            # NOTE: all `model_data` instances changed to `self.model_info`
-            if mode.lower() == 'components':
-                components = result.eval_components(x = x_dense)
-                for i, model in enumerate(self.model_info['model']):
-                    ax.plot(x_dense, components[f'm{i}'], **ax_kws)
-                ax.set_xlabel(xlab)
-                ax.set_ylabel(r'Flux ($F_{\lambda}$)')
-
-                if emis:
-                    ax.set_title(emis + arm)
-
-                # make centroid labels?
-                for key, val in result.params.items():
-                    if key.endswith('center'):
-                        lab = str(np.round(val, 2)) + self.unit.to_string('latex')
-                        ax.axvline(val, ls = ':')
-                        plt.text(val + text_offset, y = 0.8 * self.model_info['y'].max(),
-                                 s=r' %s'%lab, rotation=90)
-                plt.connect('motion_notify_event', on_move)
-                #ax.invert_xaxis(invert_x)
-                ax.set_xlim(x_start, x_stop)
-                plt.tight_layout()
-
-            if mode.lower() == 'residuals':
-                print('Do something')
+            self.plot(
+                mode=mode,
+                densify=densify,
+                invert_x=invert_x,
+                emline=emline,
+                fig_kws=fig_kws,
+                ax_kws=ax_kws
+            )
 
     def get_info(self, convert=True):
 
@@ -379,7 +322,7 @@ class Modeller:
             if key.endswith('sigma'):
                 sigma.append(val.value)
 
-        return np.asarray((center, fwhm, sigma))
+        return np.asarray((center, fwhm, sigma)).T
 
     def info(self):
         """
@@ -394,13 +337,105 @@ class Modeller:
         xunit = str(self.unit)
         yunit = ('no unit' if self.flux is None else str(self.flux))
 
-        log('%s (%s, %s)', data, xunit, yunit)
+#        log('%s (%s, %s)', data, xunit, yunit)
         self.wcs.info()
 
         # has a fit been made?
         if hasattr(self, "fit_result"):
-            center, hwhm = np.round(self.get_info(), 2)
+            center, fwhm, sigma = np.round(self.get_info().T, 2)
             log("Fit Info (in %s)" % self.unit)
-            log("%8s %8s" % ('Centroid', 'HWHM'))
-            for c, h in zip(center, hwhm):
-                log("%8s %8s" % (c, h))
+            log("%8s %8s" % ('Centroid', 'FWHM'))
+            for c, f in zip(center, fwhm):
+                log("%8s %8s" % (c, f))
+
+    def plot(self, mode='components', densify=10, invert_x=False, emline=None,
+             ax_kws=None, fig_kws=None):
+        '''convenience function'''
+
+        if fig_kws is None:
+            fig_kws = {'figsize': (9, 5)}
+        if ax_kws is None:
+            ax_kws = {'drawstyle': 'steps-mid', 'linewidth': 1}
+        
+        if emline is not None:
+            if emline in lines.keys():
+                emis = lines[emline][2]
+            else:
+                emis = None
+        else:
+            emis=None
+        # get the x and y data
+        xarr = self.model_info['x']
+        yarr = self.model_info['y']
+
+        # make a dense array for curve plotting
+        x_dense = np.arange(xarr[0], xarr[-1], (xarr[1] - xarr[0])/densify)
+
+        # Does a figure exist?
+        if not plt.get_fignums():
+            fig, ax = plt.subplots(**fig_kws)
+        else:
+            ax = plt.gca()
+        
+        # if it exists, is there data?
+        if ax.lines:
+            pass
+        elif ax.collections:
+            pass
+        else:
+            ax.plot(xarr, yarr, **ax_kws)
+
+        xtype = self.wcs.wcs.wcs.ctype[0]
+        xlab = f'{xtype} ({self.unit.to_string("latex")})'
+
+        # do we want to invert the x-axis?
+        if invert_x:
+            text_offset = -0.5
+            x_start = self.wcs.get_stop()
+            x_stop = self.wcs.get_start()
+            arm = str(' (Blue)')
+        else:
+            text_offset = 0.5
+            x_start = self.wcs.get_start()
+            x_stop = self.wcs.get_stop()
+            arm = str(' (Red)')
+
+        # Handle motion events?
+        def on_move(event):
+            if event.inaxes is not None:
+                xc, yc = event.xdata, event.ydata
+                try:
+                    i = self.wcs2pix(xc, nearest=True)
+                    x = self.pix2wcs(i)
+                    event.canvas.toolbar.set_message(
+                        'xc=%g yc=%g i=%d dist=%g data=%g' %
+                        (xc, yc, i, x, self._data[i]))
+                except Exception as e:
+                    print(e)  # for debug
+                    pass
+
+        # NOTE: all `model_data` instances changed to `self.model_info`
+        if mode.lower() == 'components':
+            components = self.fit_result.eval_components(x=x_dense)
+            for i, model in enumerate(self.model_info['model']):
+                ax.plot(x_dense, components[f'm{i}'], **ax_kws)
+            ax.set_xlabel(xlab)
+            ax.set_ylabel(r'Flux ($F_{\lambda}$)')
+
+            if emis:
+                ax.set_title(emis + arm)
+
+            # make centroid labels?
+            for key, value in self.fit_result.params.items():
+                val = value.value
+                if key.endswith('center'):
+                    lab = str(np.round(val, 2)) + self.unit.to_string('latex')
+                    ax.axvline(val, ls=':')
+                    plt.text(val + text_offset, y=0.8 * self.model_info['y'].max(),
+                             s=r' %s'%lab, rotation=90)
+            plt.connect('motion_notify_event', on_move)
+            ax.set_xlim(x_start, x_stop)
+            plt.tight_layout()
+
+        if mode.lower() == 'residuals':
+            print('Do something')

@@ -92,7 +92,7 @@ class SpatLine(DataND):
 
         self._coords = coords
 
-    def integrate(self, amin=None, amax=None, unit=None):
+    def integrate(self, arcs, unit=u.arcsec):
         """
         This will integrate the (non-corrected) flux over a spectral range using
         a simple Simpson's Rule.
@@ -109,90 +109,46 @@ class SpatLine(DataND):
 
         Parameters
         ----------
-        lmin : float
-            lower bound of the velocity or wavelength; if None, the function
-            begins at first pixel
-        lmax : float
-            upper bound; if None, this is the last pixel
+        arcs : list or tuple, optional
+            the integration range; if none, integrate the whole profile
         unit : `astropy.units.Unit` or None
-            the spectral units of [lmin, lmax]; None by default if these are
-            pixel indices
+            the spatial units of `arcs`; if None, treat as pixels
 
         Returns
         -----------
         out : we'll see
         """
-
-        # get the indices of the specified ranges and all that
-        # i1 is index; l1 is wave/velocity
-        if amin is None:
-            i1 = 0
-            amin = self.position.pix2offset(-0.5)
-        else:
-            if unit is None:
-                i1 = amin
-                amin = self.position.offset2pix(max(-0.5, i1))
+        
+        if arcs is not None:
+            arcs = np.asarray(arcs)
+            if unit:
+                arcs = self.position.offset2pix(arcs, nearest=True)
             else:
-                i1 = self.position.offset2pix(amin, nearest=False)
-            i1 = max(0, int(i1))
-
-        if amax is None:
-            i2 = self.shape[0]
-            amax = self.position.pix2offset(i2 - 0.5)
+                arcs = arcs.astype(int)
         else:
-            if unit is None:
-                i2 = lmax
-                lmax = self.position.pix2offset(min(self.shape[0] - 0.5, i2))
-            else:
-                i2 = self.position.offset2pix(amax, nearest=False)
-            i2 = min(self.shape[0], int(i2) + 1)
+            arcs = np.asarray([0, self.shape[0]])
 
-        # to work around the array limits, we'll take the lower wavelength or
-        # velocity of each pixel + 1 pixel at the end
-        d = self.position.pix2offset(-0.5 + np.arange(i1, i2+1))
-
-        # truncate or extend the first and last pixels to the start/end of
-        # the values in the spectrum
-        d[0] = amin
-        d[-1] = amax
-
-        if unit is None:
-            unit = self.position.unit
+        # we want the effective spatial range
+        p1, p2 = arcs
+        dist = self.position.pix2offset(np.arange(p1, p2))
 
         # get the data over the range
-        data = self.data[i1:i2]
+        data = self.data[p1:p2]
 
-        # do the units agree?
-        if unit in self.flux_unit.bases:
-            out_unit = self.flux_unit * unit
-        else:
-            try:
-                # sort out flux density
-                wunit = (set(self.flux_unit.bases) &
-                         set([u.pm, u.angstrom, u.nm, u.um])).pop()
-
-                # scale the wavelength axis
-                d *= unit.to(wunit)
-
-                # final units
-                out_unit = self.flux_unit * wunit
-
-            # if there's an error anywhere, just return unchanged units
-            except Exception:
-                out_unit = self.flux_unit * unit
-
-        # standard integration: each pixel value is multiplied by the difference
-        # in wavelength from the start of the pixel to the start of the next
-        flux = (data * np.diff(d)).sum() #* out_unit
-
+        # integrate over the spatial range using trapezoidal method
+        # from `numpy.trapz`
+        flux = np.trapz(y=data, x=dist)
         return flux
 
-    def test_fitter(self, model_list, coords = None, plot = True):
-
+    def fit_model(self, model_list, coords=None, plot=True):
+        '''
+        A convenient wrapper around the `Modeller` class to prepare 
+        and fit a model. 
+        '''
         print("We're running a test to send to `fitter.py`")
 
-        my_model = Modeller(self)
-        result = my_model.fit_model(model_list, coords=coords, mode='components',
+        model = Modeller(self)
+        result = model.fit_model(model_list, coords=coords, mode='components',
                       plot=plot, densify=10, emline=None, fig_kws=None, ax_kws=None)
 
-        print(my_model.info())
+        self._fit_result = result

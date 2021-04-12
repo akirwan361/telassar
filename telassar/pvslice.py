@@ -2,6 +2,7 @@ from astropy.io import fits
 import astropy.units as u
 from numpy import ma
 import numpy as np
+import scipy as sp
 from lmfit import models
 import matplotlib.pyplot as plt
 
@@ -15,8 +16,8 @@ from .plotter import (ImCoords, get_plot_norm, get_plot_extent,
 from .lines import lines
 from .tools import parse_badlines
 
-from matplotlib.ticker import AutoMinorLocator, MaxNLocator
 from datetime import datetime
+from tqdm import trange
 
 class PVSlice(DataND):
 
@@ -33,21 +34,17 @@ class PVSlice(DataND):
         pvslice[i, :] = spectral profile
         pvslice[:, :] = sub-pvslice
         """
-        #print(item)
         obj = super(PVSlice, self).__getitem__(item)
-        #print(type(obj))
         if isinstance(obj, DataND):
             if obj.ndim == 2:
                 return obj
-            elif obj.ndim == 1 and _is_spatial:
+            elif obj.ndim == 1 and obj._is_spatial:
                 cls = SpatLine
-            elif obj.ndim == 1 and _is_spectral:
+            elif obj.ndim == 1 and obj._is_spectral:
                 cls = SpecLine
             return cls.new_object(obj)
         else:
             return obj
-
-
 
     def spectral_window(self, vmin, vmax=None, unit=None):
         '''
@@ -520,8 +517,8 @@ class PVSlice(DataND):
         '''
         import pathlib
 
-        # instantiate an empty dictionary
-        skylines = {}
+        # does a skylines attribute already exist?
+        skylines = self.skylines if self.skylines else {}
 
         # look only in the current working directory
         workdir = pathlib.Path.cwd()
@@ -554,9 +551,154 @@ class PVSlice(DataND):
                 for emis, l1, l2 in parse_badlines(path):
                     skylines[emis] = [l1, l2]
 
-        self._skylines = skylines if skylines else None
+        self.skylines = skylines if skylines else None
 
-    def unregister_skylines(self):
+    def unregister_skylines(self, key=None):
         '''Remove skyline info from the instance'''
-        self._logger.warning("Removing skyline info!")
-        self._skylines = None
+
+        # if a key is passed, is it in the sky dict?
+        if key is not None:
+            try:
+                self.skylines.pop(key)
+                self._logger.info("Unregistering skyline %s" % key)
+            except Exception:
+                self._logger.warning("%s not in registry!" % key)
+                self._logger.warning("No skyline info unregistered",
+                                    exc_info=True)
+        else:
+            self._logger.info("Unregistering all skyline info!")
+            self.skylines = None
+
+    def _interp_skylines(self, pix):
+        '''
+        Utilize `scipy.interpolate.splrep` and `scipy.interpolate.splev`
+        to interpolate the masked skyline values
+
+        Parameters:
+        ----------
+        pix : `int`
+            The pixel index at which to perform the interpolation
+        '''
+     
+        # get the spectrum and wavelength array at the given pixel
+        raw = self.data[pix, :].copy()
+        lbda = self.velwave.pix2wav()
+
+        # pad the compressed array
+        line = np.pad(raw.compressed(), 1, 'edge')
+
+        # what are the masked wavelengths?
+        masked = lbda[raw.mask]
+
+        # get the effective wavelength range of the data
+        w1, w2 = self.velwave.pix2wav([-0.5, self.shape[1] - 0.5])
+
+        # concatenate the effective and compressed wavelengths
+        wave = np.concatenate(([w1], np.compress(~raw.mask, lbda), [w2]))
+
+        # get the spline representation
+        tck = sp.interpolate.splrep(wave, line)
+
+        # evaluate it
+        filled = sp.interpolate.splev(masked, tck)
+
+        return filled
+
+    def skymask(self, wave=None, spec_unit=u.angstrom, verbose=False):
+        '''
+        Mask skyline emission over the given range. Note that this
+        assumes the skyline covers the entire spatial range, so use
+        it with caution. If reading from the `skylines` attribute,
+        it assumes the values are stored in wavelengths, not pixels.
+
+        TODO: Add support for specifying spatial extents, and add an
+        option for the `skylines` dict to toggle pixels/wavelength.
+
+        Parameters:
+        -----------
+        wave : list or tuple, optional
+            The wavelength range to mask; if None, try to read from
+            the `self.skylines` dict
+        spec_unit : astropy.unit.Unit, optional
+            self-explanatory; if None, any given `wave` value is treated
+            as pixels
+        verbose : bool
+            if True, print a logger line for each registered skyline masked
+        '''
+
+        # first see if any skylines are registered
+        if self.skylines:
+            is_registered = True
+        else:
+            is_registered = False
+
+        if not is_registered:
+            if wave is None:
+                self._logger.warning("No skylines are registered and no wavelength"
+                                     "is specified. Aborting procedure.")
+                return
+            else:
+                wave = np.asarray(wave)
+
+                if len(wave) != 2:
+                    self.logger.warning("Only two wavelength values can be "
+                                        "specified at a time!")
+                    return
+
+                if spec_unit:
+                    p1, p2 = self.velwave.wav2pix(wave, nearest=True)
+                else:
+                    p1, p2 = wave.astype(int)
+
+            # mask it
+            self.data[:, p1:p2] = ma.masked
+
+        elif is_registered:
+            # get the wavelengths from the skylines dict
+            for k, *v in self.skylines.items():
+                if verbose:
+                    self.logger.info("Masking %s line..."%k)
+
+                p1, p2 = self.velwave.wav2pix(*v, nearest=True)
+                self.data[:, p1:p2] = ma.masked
+
+    def skysub(self, arcs=None, unit=u.arcsec, verbose=False, progress=False):
+        '''
+        Iterate over spatial pixels and perform a spline interpolation
+        of the masked skyline regions. This calls `_interp_skylines()`.
+
+        Parameters:
+        -----------
+        arcs : list or tuple, optional
+            pixel or offset values over which to iterate; if None,
+            operate on the entire spatial range
+        unit : `astropy.units.Unit`, optional
+            if None, assume `arcs` is in pixels
+        verbose : bool
+            if True, print a logger line for each sky emission 
+        progress : bool
+            if True, use `tqdm` to print a progress bar
+        '''
+
+        if arcs is not None:
+            arcs = np.asarray(arcs)
+            if unit:
+                arcs = self.position.offset2pix(arcs, nearest=True)
+            else:
+                arcs = arcs.asype(int)
+        else:
+            arcs = np.array([0, self.shape[0]])
+
+        p1, p2 = arcs
+
+        if progress:
+            self._logger.info("Interpolating masked regions...")
+            f = trange
+        else:
+            f = np.arange
+
+        for p in f(p1, p2):
+            # TODO: find a better way to do this
+            data = self.data[p, :]
+            data[data.mask] = self._interp_skylines(pix=p)
+            self.data[p, :] = data

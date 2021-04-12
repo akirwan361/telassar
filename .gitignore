@@ -13,9 +13,14 @@ dist/
 build/
 setup/
 
+<<<<<<< HEAD
+=======
+# sandbox/debugging crap
+examples/.ipynb_checkpoints
+>>>>>>> 3acaff60c9d3650e12738f9bb1e5dc4aff2f2e71
 .ipynb_checkpoints/
 examples/.ipynb_checkpoints/
+workspace.ipynb
 
->>>>>>> master
 .tox
 .cache

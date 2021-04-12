@@ -183,4 +183,28 @@ def parse_badlines(fname):
     with open(fname) as f:
         for line in f.readlines():
             l1, l2, emis = line.strip().split()
-            yield emis, l1, l2
+            yield emis, float(l1), float(l2)
+
+
+def get_noise1D(flux):
+    '''
+    A simple function to return the noise of an array following the
+    sigma-estimation given in Czesla et al., 2018 (A&A, 609, A39):
+
+        sigma = (1.482602 / sqrt(6)) * med_i(| 2*flux_i - \
+                         flux_{i-2} - flux_{i+2}|)
+
+    (See: http://cdsads.u-strasbg.fr/abs/2018A%26A...609A..39C)
+    '''
+
+    # ignore masked pixels
+    flux = flux.compressed()
+    n = len(flux)
+
+    if n > 4:
+        noise = (1.482602/np.sqrt(6)) * np.median(abs(2 * flux[2:n-2] \
+                - flux[0:n-4] - flux[4:n]))
+    else:
+        noise = 0.
+
+    return noise
