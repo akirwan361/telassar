@@ -10,7 +10,7 @@ from os import path
 
 here = path.abspath(path.dirname(__file__))
 # Get the long description from the README file
-with open(path.join(here, "README.md"), encoding='utf-8' as dfile:
+with open(path.join(here, "README.md"), encoding='utf-8') as dfile:
     long_description = dfile.read()
 
 setup(
@@ -22,8 +22,8 @@ setup(
     author='Andrew Miller',  # Optional
     author_email='andrew.miller@mu.ie',  # Optional
     keywords='astronomy, spectroscopy, astrophysics',  # Optional
-    package_dir={'': 'telassar'}
-    packages=find_packages('telassar')
+#    package_dir={'': 'telassar'}
+    packages=find_packages(include=['telassar']),
     python_requires='>=3.6',
     install_requires=[
         'astropy',

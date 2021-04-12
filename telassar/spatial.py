@@ -130,7 +130,7 @@ class SpatLine(DataND):
 
         # we want the effective spatial range
         p1, p2 = arcs
-        dist = self.position.pix2offset(np.arange(p1, p2)
+        dist = self.position.pix2offset(np.arange(p1, p2))
 
         # get the data over the range
         data = self.data[p1:p2]
