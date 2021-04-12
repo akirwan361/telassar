@@ -296,6 +296,16 @@ class DataND:
         res = ma.max(self.data)
         return res
 
+    def mean(self):
+        ''' return mean unmasked value'''
+        res = ma.mean(self.data)
+        return res
+
+    def median(self):
+        '''return median unmasked value'''
+        res = ma.median(self.data)
+        return res
+
     def set_coords(self, wcs=None, spec=None):
         """
         Set the wcs info for the object. Hopefully this sorts the issue

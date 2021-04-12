@@ -685,18 +685,18 @@ class PVSlice(DataND):
             if unit:
                 arcs = self.position.offset2pix(arcs, nearest=True)
             else:
-                arc = arcs.asype(int)
+                arcs = arcs.asype(int)
         else:
             arcs = np.array([0, self.shape[0]])
 
         p1, p2 = arcs
-        
+
         if progress:
             self._logger.info("Interpolating masked regions...")
             f = trange
         else:
             f = np.arange
-        
+
         for p in f(p1, p2):
             # TODO: find a better way to do this
             data = self.data[p, :]
