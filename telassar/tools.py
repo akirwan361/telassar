@@ -186,25 +186,38 @@ def parse_badlines(fname):
             yield emis, float(l1), float(l2)
 
 
-def get_noise1D(flux):
+def get_noise1D(flux, full=True):
     '''
     A simple function to return the noise of an array following the
-    sigma-estimation given in Czesla et al., 2018 (A&A, 609, A39):
+    sigma-estimation given in Stoehr et al., 2008 (ASPC, 394, 505S):
 
-        sigma = (1.482602 / sqrt(6)) * med_i(| 2*flux_i - \
-                         flux_{i-2} - flux_{i+2}|)
+        sigma = 1.482602 / sqrt(6) *
+                median(abs(2*flux(i) - flux(i-2) - flux(i+2)))
+    
+    (see http://articles.adsabs.harvard.edu/pdf/2008ASPC..394..505S)
 
-    (See: http://cdsads.u-strasbg.fr/abs/2018A%26A...609A..39C)
+    This is adapted to allow the noise at each pixel to be returned,
+    or to return the mean sigma value
     '''
 
-    # ignore masked pixels
+    # make sure it's a masked array
+    flux = np.ma.masked_array(flux)
+    # ignore any negative values
+    flux[flux <= 0.] = np.ma.masked
     flux = flux.compressed()
-    n = len(flux)
 
-    if n > 4:
-        noise = (1.482602/np.sqrt(6)) * np.median(abs(2 * flux[2:n-2] \
-                - flux[0:n-4] - flux[4:n]))
+    noise = []
+    for n in range(len(flux)):
+        if n > 4:
+            sigma = (1.482602/np.sqrt(6)) * np.median(abs(2 * flux[2:n-2] \
+                    - flux[0:n-4] - flux[4:n]))
+        else:
+            sigma = 0.
+        noise.append(sigma)
+
+    if not full:
+        noise = np.mean(noise)
     else:
-        noise = 0.
+        noise = np.asarray(noise)
 
     return noise
