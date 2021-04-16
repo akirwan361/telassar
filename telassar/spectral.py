@@ -11,6 +11,7 @@ from .world import Position, VelWave
 from .plotter import *
 from .tools import is_notebook
 from .lines import lines
+from .fitter import Modeller, FitStats
 
 class SpecLine(DataND):
 
@@ -238,3 +239,26 @@ class SpecLine(DataND):
             cid = fig.canvas.mpl_connect('key_press_event', on_key)
 
         self._coords = coords
+
+    def fit_model(self, model_list, coords=None, plot=True, weight=False):
+        '''
+        A convenient wrapper around the `Modeller` class to prepare
+        and fit a model.
+
+        Parameters:
+        -----------
+
+        model_list : list
+            a list of single-letter keys to pass to the modeller, corresponding
+            to the type of model the user wishes to have fitted
+        coords : list, optional
+            coordinates to include as initial guesses for the fitter; these can
+            be manually specified, or chosen interactively from the plots
+        plot : bool
+            if you want it plotted
+        '''
+        model = Modeller(self)
+        model.fit_model(model_list, coords=coords, mode='components',
+                                 plot=plot, densify=10, emline=None, fig_kws=None,
+                                 ax_kws=None)
+        return model

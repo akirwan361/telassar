@@ -42,7 +42,7 @@ class SpatLine(DataND):
             if event.inaxes is not None:
                 xc, yc = event.xdata, event.ydata
                 try:
-                    i = self.position.offset2pix(xc, nearest = True)
+                    i = self.position.offset2pix(xc, nearest=True)
                     x = self.position.pix2offset(i)
                     event.canvas.toolbar.set_message(
                         'xc=%g yc=%g i=%d dist=%g data=%g' %
@@ -56,7 +56,7 @@ class SpatLine(DataND):
             xc, yc = event.xdata, event.ydata
             
             try:
-                i = self.position.offset2pix(xc, nearest = True)
+                i = self.position.offset2pix(xc, nearest=True)
                 x = self.position.pix2offset(i)
                 data = self._data[i]
                 print(f'arc={x}, flux={data}')
@@ -71,7 +71,7 @@ class SpatLine(DataND):
             if event.key == 'a':
                 self._logger.info('Enabling point-selection mode...')
                 cid = fig.canvas.mpl_connect('button_press_event', on_click)
-            if event.key == 'q': 
+            if event.key == 'q':
                 self._logger.info("Point-selection mode disabled.")
                 cid = fig.canvas.mpl_connect('button_press_event', on_click)
                 fig.canvas.mpl_disconnect(cid)
@@ -140,15 +140,25 @@ class SpatLine(DataND):
         flux = np.trapz(y=data, x=dist)
         return flux
 
-    def fit_model(self, model_list, coords=None, plot=True):
+    def fit_model(self, model_list, coords=None, plot=True, weight=False):
         '''
-        A convenient wrapper around the `Modeller` class to prepare 
-        and fit a model. 
-        '''
-        print("We're running a test to send to `fitter.py`")
+        A convenient wrapper around the `Modeller` class to prepare
+        and fit a model.
 
+        Parameters:
+        -----------
+
+        model_list : list
+            a list of single-letter keys to pass to the modeller, corresponding
+            to the type of model the user wishes to have fitted
+        coords : list, optional
+            coordinates to include as initial guesses for the fitter; these can
+            be manually specified, or chosen interactively from the plots
+        plot : bool
+            if you want it plotted
+        '''
         model = Modeller(self)
-        result = model.fit_model(model_list, coords=coords, mode='components',
-                      plot=plot, densify=10, emline=None, fig_kws=None, ax_kws=None)
-
-        self._fit_result = result
+        model.fit_model(model_list, coords=coords, mode='components',
+                                 plot=plot, densify=10, emline=None, fig_kws=None,
+                                 ax_kws=None)
+        return model

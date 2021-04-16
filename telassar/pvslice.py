@@ -569,7 +569,7 @@ class PVSlice(DataND):
             self._logger.info("Unregistering all skyline info!")
             self.skylines = None
 
-    def _interp_skylines(self, pix):
+    def _interp_skylines(self, pix, spline=False):
         '''
         Utilize `scipy.interpolate.splrep` and `scipy.interpolate.splev`
         to interpolate the masked skyline values
@@ -595,16 +595,20 @@ class PVSlice(DataND):
 
         # concatenate the effective and compressed wavelengths
         wave = np.concatenate(([w1], np.compress(~raw.mask, lbda), [w2]))
+        if spline:
+            # get the spline representation
+            tck = sp.interpolate.splrep(wave, line)
 
-        # get the spline representation
-        tck = sp.interpolate.splrep(wave, line)
-
-        # evaluate it
-        filled = sp.interpolate.splev(masked, tck)
+            # evaluate it
+            filled = sp.interpolate.splev(masked, tck)
+        else:
+            res = sp.interpolate.interp1d(wave, line)
+            #res = np.interp(lbda, wave, line)
+            filled = res(masked)
 
         return filled
 
-    def skymask(self, wave=None, spec_unit=u.angstrom, verbose=False):
+    def skymask(self, arcs=None, wave=None, spat_unit=u.arcsecond, spec_unit=u.angstrom, verbose=False):
         '''
         Mask skyline emission over the given range. Note that this
         assumes the skyline covers the entire spatial range, so use
@@ -632,6 +636,18 @@ class PVSlice(DataND):
         else:
             is_registered = False
 
+        # now sort out the spatial extent
+        if arcs is not None:
+            arcs = np.asarray(arcs)
+            if spat_unit:
+                arcs = self.position.offset2pix(arcs, nearest=True)
+            else:
+                arcs = arcs.astype(int)
+        else:
+            arcs = np.array([0, self.shape[0]])
+
+        p1, p2 = arcs
+
         if not is_registered:
             if wave is None:
                 self._logger.warning("No skylines are registered and no wavelength"
@@ -641,28 +657,28 @@ class PVSlice(DataND):
                 wave = np.asarray(wave)
 
                 if len(wave) != 2:
-                    self.logger.warning("Only two wavelength values can be "
+                    self._logger.warning("Only two wavelength values can be "
                                         "specified at a time!")
                     return
 
                 if spec_unit:
-                    p1, p2 = self.velwave.wav2pix(wave, nearest=True)
+                    l1, l2 = self.velwave.wav2pix(wave, nearest=True)
                 else:
-                    p1, p2 = wave.astype(int)
+                    l1, l2 = wave.astype(int)
 
             # mask it
-            self.data[:, p1:p2] = ma.masked
+            self.data[p1:p2, l1:l2] = ma.masked
 
         elif is_registered:
             # get the wavelengths from the skylines dict
             for k, *v in self.skylines.items():
                 if verbose:
-                    self.logger.info("Masking %s line..."%k)
+                    self._logger.info("Masking %s line..."%k)
 
-                p1, p2 = self.velwave.wav2pix(*v, nearest=True)
-                self.data[:, p1:p2] = ma.masked
+                l1, l2 = self.velwave.wav2pix(*v, nearest=True)
+                self.data[p1:p2, l1:l2] = ma.masked
 
-    def skysub(self, arcs=None, unit=u.arcsec, verbose=False, progress=False):
+    def skysub(self, arcs=None, unit=u.arcsec, inplace=False, progress=False, spline=False):
         '''
         Iterate over spatial pixels and perform a spline interpolation
         of the masked skyline regions. This calls `_interp_skylines()`.
@@ -679,6 +695,8 @@ class PVSlice(DataND):
         progress : bool
             if True, use `tqdm` to print a progress bar
         '''
+        
+        res = self if inplace else self.copy()
 
         if arcs is not None:
             arcs = np.asarray(arcs)
@@ -699,6 +717,11 @@ class PVSlice(DataND):
 
         for p in f(p1, p2):
             # TODO: find a better way to do this
-            data = self.data[p, :]
-            data[data.mask] = self._interp_skylines(pix=p)
-            self.data[p, :] = data
+            data = res.data[p, :]
+            try:
+                data[data.mask] = res._interp_skylines(pix=p, spline=spline)
+            except Exception:
+                pass
+            res.data[p, :] = data
+
+        return res

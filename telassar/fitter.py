@@ -9,10 +9,11 @@ from matplotlib.ticker import AutoMinorLocator
 from .data import DataND
 from .world import Position, VelWave
 from .plotter import *
-from .tools import is_notebook
+from .tools import is_notebook, get_noise1D
 from .lines import lines
 
 import logging
+
 
 class Modeller:
 
@@ -142,8 +143,8 @@ class Modeller:
         self.model_info = model_data
         return self.model_info
 
-    def make_model(self, model_list, coords = None, prepped_model = None,
-                  unit = True):
+    def make_model(self, model_list, coords=None, prepped_model=None,
+                  unit=True):
         """
         Generate a model using a model list and coord data. This function uses
         `lmfit` to generate the models, perform a least-squares fit, and evaluate
@@ -175,6 +176,12 @@ class Modeller:
         xmin = x.min()
         ymin = y.min()
 
+        # estimate the noise
+        noise = get_noise1D(y, full=False)
+
+        # conversion factor: 2 sqrt(ln(2))
+        factor = 2 * np.sqrt(np.log(2))
+
         # if no coordinates are provided, make a guess.
         # TODO: update this for guessing when there are multiple peaks
         if coords is not None:
@@ -196,19 +203,24 @@ class Modeller:
                                 'VoigtModel']:
                 model.set_param_hint('amplitude', value=1.1*peak,
                                       min=0.5 * peak)
-                model.set_param_hint('center', value=ctr, min=ctr - 2,
-                                      max=ctr + 2)
+                model.set_param_hint('center', value=ctr, min=ctr - 1,
+                                      max=ctr + 1)
                 model.set_param_hint('sigma', min=1e-6, max=10) #max=30
                 default_params = {
                         prefix+'center': ctr,
                         prefix+'height': peak,
-                        prefix+'sigma': 5
+                        prefix+'sigma': 5,
                     }
             else:
                 raise NotImplementedError(f"Model {func['type']} not implemented yet")
 
             # make the parameters
             model_params = model.make_params(**default_params, **func.get('params', {}))
+
+            # we have some custom parameters we want to send, as well
+            model_params.add(f"{prefix}fwhm", expr=f"2.3584*{prefix}sigma")
+            model_params.add(f"{prefix}snr", expr=f"{prefix}amplitude / {noise}")
+            model_params.add(f"{prefix}cent_err", expr=f"{prefix}fwhm / ({factor}*{prefix}snr)")
 
             if params is None:
                 params = model_params
@@ -283,7 +295,7 @@ class Modeller:
         xarr = self.model_info['x']
         yarr = self.model_info['y']
 
-        result = model_data.fit(yarr, params, x=xarr)
+        result = model_data.fit(yarr, params, x=xarr, nan_policy='omit')
         self.fit_result = result
 
         # make a dense array for curve plotting
@@ -299,54 +311,76 @@ class Modeller:
                 ax_kws=ax_kws
             )
 
-    def get_info(self, convert=True):
+#    def get_info(self, convert=True):
+#
+#        """
+#        get the basic information about the fit, ie the centroid and HWHM. this
+#        doesn't worry about converting e.g. angstrom to km/s beccause the main
+#        PVSlice class will handle this in the `radial_velocity` function.
+#        """
+#        from astropy.constants import c
+#
+#        center = []
+#        fwhm = []
+#        sigma = []
+#        
+#
+#        # get the mimimum possible wavelength step of instrument
+##        minstep = self.wcs.get_step()
+#        for key, val in self.fit_result.params.items():
+#            if key.endswith('center'):
+#                center.append(val.value)
+#            if key.endswith('fwhm'):
+#                fwhm.append(val.value)
+#            if key.endswith('sigma'):
+#                sigma.append(val.value)
+#
+#        return np.asarray((center, fwhm, sigma)).T
 
-        """
-        get the basic information about the fit, ie the centroid and HWHM. this
-        doesn't worry about converting e.g. angstrom to km/s beccause the main
-        PVSlice class will handle this in the `radial_velocity` function.
-        """
-        from astropy.constants import c
-
-        center = []
-        fwhm = []
-        sigma = []
-
-        # get the mimimum possible wavelength step of instrument
-        minstep = self.wcs.get_step()
-        for key, val in self.fit_result.params.items():
-            if key.endswith('center'):
-                center.append(val.value)
-            if key.endswith('fwhm'):
-                fwhm.append(val.value)
-            if key.endswith('sigma'):
-                sigma.append(val.value)
-
-        return np.asarray((center, fwhm, sigma)).T
+    def get_info(self, as_dataframe=False):
+        if hasattr(self, "fit_result"):
+            stats = FitStats(self.fit_result)
+            numComp = len(stats._model.components)
+            res = stats.return_results(as_dataframe)
+            return res
 
     def info(self):
-        """
-        Print the info if you want it
-        """
 
         log = self._logger.info
-        shape_str = (' x '.join(str(x) for x in self.shape)
-                    if self.shape is not None else 'no shape')
 
-        data = ('no data' if self.data is None else f'.data({shape_str})')
-        xunit = str(self.unit)
-        yunit = ('no unit' if self.flux is None else str(self.flux))
-
-#        log('%s (%s, %s)', data, xunit, yunit)
         self.wcs.info()
+        if hasattr(self, 'fit_result'):
+            numComp = len(self.fit_result.model.components)
+            log("Fit Info (%s components)" % numComp)
 
-        # has a fit been made?
-        if hasattr(self, "fit_result"):
-            center, fwhm, sigma = np.round(self.get_info().T, 2)
-            log("Fit Info (in %s)" % self.unit)
-            log("%8s %8s" % ('Centroid', 'FWHM'))
-            for c, f in zip(center, fwhm):
-                log("%8s %8s" % (c, f))
+            stats = FitStats(self.fit_result)
+
+            stats.print_results()
+
+#    def info(self):
+
+#        """
+#        Print the info if you want it
+#        """
+#
+#        log = self._logger.info
+#        shape_str = (' x '.join(str(x) for x in self.shape)
+#                    if self.shape is not None else 'no shape')
+#
+#        data = ('no data' if self.data is None else f'.data({shape_str})')
+#        xunit = str(self.unit)
+#        yunit = ('no unit' if self.flux is None else str(self.flux))
+#
+##        log('%s (%s, %s)', data, xunit, yunit)
+#        self.wcs.info()
+#
+#        # has a fit been made?
+#        if hasattr(self, "fit_result"):
+#            center, fwhm, sigma = np.round(self.get_info().T, 2)
+#            log("Fit Info (in %s)" % self.unit)
+#            log("%8s %8s" % ('Centroid', 'FWHM'))
+#            for c, f in zip(center, fwhm):
+#                log("%8s %8s" % (c, f))
 
     def plot(self, mode='components', densify=10, invert_x=False, emline=None,
              ax_kws=None, fig_kws=None):
@@ -439,3 +473,115 @@ class Modeller:
 
         if mode.lower() == 'residuals':
             print('Do something')
+
+
+class FitStats:
+    '''
+    a convenient wrapper for sorting out some fit statistics
+    Note the centroid error is calculated by the equation:
+
+        sigma = FWHM / (2 sqrt(ln(2)) * SNR)
+
+    see Porter et al, 2004, A&A, 428, 327
+    '''
+    def __init__(self, object):
+        '''pass an `lmfit.model.ModelResult` instance'''
+        self._logger = logging.getLogger(__name__)
+
+        self._model = object.model
+        self._params = object.params
+        self._data = object.data
+        self._numComp = len(object.model.components)
+        
+        self.parse_results()
+
+    def parse_results(self):
+
+        pars = self._params
+        N = len(self._model.components)
+        columns = ['value', 'stderr']
+        params = ['amplitude', 'fwhm', 'sigma', 'center', 'cent_err']
+        noise = get_noise1D(self._data, full=False)
+
+        for i in range(N):
+            # we will dynamically add attributes to the instance
+            # so stats can be accessed with `FitStats.modelN`
+            name = f'model_{i}'
+
+            filled_params = []
+
+            for p in params:
+                filled_params.append([getattr(pars[f'm{i}{p}'], k) for k in columns])
+            
+            # if any values are None, fix it
+            for filled in filled_params:
+                if filled[1] is None:
+                    filled[1] = filled[0] * 0.1
+
+#            # this is old; 
+#            peak = []
+#            fwhm = []
+#            center = []
+#            sigma = []
+
+#            for k in columns:
+#                # append values to the lists
+#                peak.append(getattr(pars[f'm{i}amplitude'], k))
+#                fwhm.append(getattr(pars[f'm{i}fwhm'], k))
+#                center.append(getattr(pars[f'm{i}center'], k))
+#                sigma.append(getattr(pars[f'm{i}sigma'], k))
+
+            peak, fwhm, sigma, center, centerr = filled_params
+
+            # assign the true centroid error to the centroid array
+            center[1] = centerr[0]
+
+            # get the flux
+            flux_fac = np.sqrt(2 * np.pi * sigma[0]**2)
+            flux = list(map(lambda x : x * flux_fac, peak))
+
+            _holder = {
+                'flux': np.array(flux),
+                'peak': np.array(peak),
+                'fwhm': np.array(fwhm),
+                'center': np.array(center),
+                'sigma': np.array(sigma)
+            }
+
+            # now set the attributes
+            setattr(self, name, _holder)
+
+    def print_results(self):
+
+        log = self._logger.info
+        for i, model in enumerate(self._model.components):
+            name = model._name.title()
+            log(" MODEL %s :  %s" % (i, name.upper()))
+
+            for k, (v, e) in getattr(self, f'model_{i}').items():
+                v = np.round(v, 2)
+                e = np.round(e, 2)
+                log('%8s : %8s +/- %s' % (k.title(), v, e))
+
+    def return_results(self, as_dataframe=False):
+
+        param_values = []
+        cols = []
+        N = self._numComp
+        for i in range(N):
+            for k, (v, e) in getattr(self, f'model_{i}').items():
+                param_values.append(v)
+                cols.append(k)
+
+        param_values = np.asarray(param_values).reshape((N, 5))
+
+        if as_dataframe:
+            import pandas as pd
+            param_values = pd.DataFrame(
+                    data=param_values,
+                    columns = cols[:5]
+                    )
+
+        return param_values
+
+

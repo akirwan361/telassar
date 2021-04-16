@@ -186,7 +186,7 @@ def parse_badlines(fname):
             yield emis, float(l1), float(l2)
 
 
-def get_noise1D(flux, full=True):
+def get_noise1D(flux, full=False):
     '''
     A simple function to return the noise of an array following the
     sigma-estimation given in Stoehr et al., 2008 (ASPC, 394, 505S):
@@ -204,7 +204,9 @@ def get_noise1D(flux, full=True):
     flux = np.ma.masked_array(flux)
     # ignore any negative values
     flux[flux <= 0.] = np.ma.masked
+#    flux = np.ma.filled(flux, 0)
     flux = flux.compressed()
+
 
     noise = []
     for n in range(len(flux)):
