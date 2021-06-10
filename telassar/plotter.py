@@ -80,9 +80,9 @@ def get_plot_extent(wcs_obj, spec_obj):
     ymin = wcs_obj.get_start()
     ymax = wcs_obj.get_stop()
     
-    if spec_obj.wcs.wcs.ctype[0] == 'VELO':
-        xmin /= 1000
-        xmax /= 1000
+#    if spec_obj.wcs.wcs.ctype[0] == 'VELO':
+#        xmin /= 1000
+#        xmax /= 1000
     return xmin, xmax, ymin, ymax
 
 def get_background_rms(data, sigma=3, N=10, mask = None):

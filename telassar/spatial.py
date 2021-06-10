@@ -12,8 +12,10 @@ from .plotter import *
 from .tools import is_notebook
 from .lines import lines
 from .fitter import Modeller
+from .domath import MathHandler
 
-class SpatLine(DataND):
+
+class SpatLine(MathHandler, DataND):
 
     _is_spatial = True
 
@@ -159,6 +161,49 @@ class SpatLine(DataND):
         '''
         model = Modeller(self)
         model.fit_model(model_list, coords=coords, mode='components',
-                                 plot=plot, densify=10, emline=None, fig_kws=None,
-                                 ax_kws=None)
+                        plot=plot, densify=10) #, emline=None, fig_kws=None,
+#                        ax_kws=None)
         return model
+
+    def mean(self, off_min=None, off_max=None, unit=u.arcsec):
+        '''
+        Simply return the mean flux over some wavelength range
+
+        Parameters
+        ----------
+        off_min : float
+            lower bound
+        off_max : float 
+            upper bound
+        unit : `astropy.units.Unit`
+            if None, assume pixels rather than coords 
+
+        Returns 
+        -------
+        out : float 
+            The mean flux
+        '''
+
+        if unit is not None:
+            l1, l2 = self.position.offset2pix([off_min, off_max], nearest=True)
+        else:
+            l1, l2 = off_min+0.5, off_max+0.5
+
+        sa = slice(l1, l2+1)
+
+        flux = np.ma.average(self.data[sa])
+        return flux
+
+
+    def sum(self, off_min=None, off_max=None, unit=u.arcsec):
+
+        if unit is not None:
+            l1, l2 = self.velwave.wav2pix([off_min, off_max], nearest=True)
+        else:
+            l1, l2 = off_min+0.5, off_max + 0.5
+
+        sa = slice(l1, l2+1)
+
+        flux = np.ma.sum(self.data[sa])
+        return flux
+

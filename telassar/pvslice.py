@@ -1,10 +1,12 @@
 from astropy.io import fits
 import astropy.units as u
+from astropy.stats import sigma_clip
 from numpy import ma
 import numpy as np
 import scipy as sp
 from lmfit import models
 import matplotlib.pyplot as plt
+from numpy.polynomial.chebyshev import chebfit, chebval
 
 from .data import DataND
 from .world import Position, VelWave
@@ -15,11 +17,12 @@ from .plotter import (ImCoords, get_plot_norm, get_plot_extent,
                       configure_axes)
 from .lines import lines
 from .tools import parse_badlines
+from .domath import MathHandler
 
 from datetime import datetime
 from tqdm import trange
 
-class PVSlice(DataND):
+class PVSlice(MathHandler, DataND):
 
     '''
     This is to just manage the data shit, but it might
@@ -190,9 +193,15 @@ class PVSlice(DataND):
         out : `telassar.SpecLine` object
         """
 
-        if (isinstance(wave, int) or isinstance(arc, int) or len(wave) != 2 or
-                len(arc) !=2):
+#        if (isinstance(wave, int) or isinstance(arc, int) or len(wave) != 2 or
+#                len(arc) !=2):
+        if (isinstance(wave, (int)) or len(wave) != 2):
             raise ValueError("Can't extract profile with only one point!")
+        if isinstance(arc, (int, np.int64)) or isinstance(arc, float):
+            a1, a2 = arc, arc
+        elif isinstance(arc, list):
+            a1, a2 = arc[0], arc[-1]
+
 
         # get the spectral and spatial limits in pixel or native unts
         if spec_unit:
@@ -203,19 +212,20 @@ class PVSlice(DataND):
             lmax = min(self.shape[1], int(wave[1] + 0.5))
 
         if spat_unit:
-            pmin = max(0, self.position.offset2pix(arc[0], nearest=True))
-            pmax = min(self.shape[0], self.position.offset2pix(arc[1], nearest=True))
+            pmin = max(0, self.position.offset2pix(a1, nearest=True))
+            pmax = min(self.shape[0], self.position.offset2pix(a2, nearest=True))
         else:
-            pmin = max(0, int(arc[0] + 0.5))
-            pmax = min(self.shape[0], int(arc[1] + 0.5))
+            pmin = max(0, int(a1 + 0.5))
+            pmax = min(self.shape[0], int(a2 + 0.5))
 
-        sx = slice(pmin, pmax+1)
-        sy = slice(lmin, lmax+1)
+        sx = slice(pmin, pmax + 1)
+        sy = slice(lmin, lmax + 1)
 
         res = self.data[sx, sy].sum(axis=0)
         spec = self.velwave[sy]
 
-        return SpecLine(data=res, spec=spec, unit=self.velwave.unit)
+        return SpecLine(data=res, spec=spec, unit=self.velwave.unit,
+                        header=self.header)
 
     def plot(self, scale='linear', ax=None, fig_kws=None, imshow_kws=None,
              vmin=None, vmax=None, zscale=None, emline=None):
@@ -569,44 +579,70 @@ class PVSlice(DataND):
             self._logger.info("Unregistering all skyline info!")
             self.skylines = None
 
-    def _interp_skylines(self, pix, spline=False):
+    def _interp_skylines(self, pix, window):
         '''
-        Utilize `scipy.interpolate.splrep` and `scipy.interpolate.splev`
-        to interpolate the masked skyline values
+        Sigma-clip the flux data and utilize `chebfit` and `chebval` 
+        from`numpy.polynomial.chebyshev` to interpolate the data.
+        By default, this uses a deg=3 fit; I'll customize it later
 
         Parameters:
         ----------
         pix : `int`
             The pixel index at which to perform the interpolation
         '''
-     
+        # get the pixel indices of the data to replace
+        l1, l2 = window
+
         # get the spectrum and wavelength array at the given pixel
-        raw = self.data[pix, :].copy()
+        data = self.data[pix, :].copy()
         lbda = self.velwave.pix2wav()
 
-        # pad the compressed array
-        line = np.pad(raw.compressed(), 1, 'edge')
+        # sigma clip the data
+        clip_mask = sigma_clip(data, sigma=2.).mask
 
-        # what are the masked wavelengths?
-        masked = lbda[raw.mask]
+        # get the coefficients
+        coeffs, full_fit = chebfit(lbda[~clip_mask], data[~clip_mask], deg=3,
+                                   full=True)
 
-        # get the effective wavelength range of the data
-        w1, w2 = self.velwave.pix2wav([-0.5, self.shape[1] - 0.5])
+        # now fit the data
+        res = chebval(lbda[l1:l2], coeffs)
 
-        # concatenate the effective and compressed wavelengths
-        wave = np.concatenate(([w1], np.compress(~raw.mask, lbda), [w2]))
-        if spline:
-            # get the spline representation
-            tck = sp.interpolate.splrep(wave, line)
+        return res
 
-            # evaluate it
-            filled = sp.interpolate.splev(masked, tck)
+    def _get_skylims(self, wave=None, unit=u.angstrom):
+
+        log = self._logger.warning
+        if self.skylines:
+            is_registered = True
         else:
-            res = sp.interpolate.interp1d(wave, line)
-            #res = np.interp(lbda, wave, line)
-            filled = res(masked)
+            is_registered = False
 
-        return filled
+        if not is_registered:
+            if wave is None:
+                log("No skylines are registered and no wavelength"
+                    " is specified. Aborting procedure.")
+                return
+            else:
+                wave = np.asarray(wave)
+
+                if len(wave) != 2:
+                    log("Only two wavelength values can be specified "
+                        "at a time!")
+                    return
+
+                if unit:
+                    l1, l2 = self.velwave.wav2pix(wave, nearest=True)
+                else:
+                    l1, l2 = wave.astype(int)
+
+            return l1, l2
+
+        elif is_registered:
+
+            # get the wavelengths from the skylines dict
+            for k, *v in self.skylines.items():
+                l1, l2 = self.velwave.wav2pix(*v, nearest=True)
+                return l1, l2
 
     def skymask(self, arcs=None, wave=None, spat_unit=u.arcsecond, spec_unit=u.angstrom, verbose=False):
         '''
@@ -617,6 +653,9 @@ class PVSlice(DataND):
 
         TODO: Add support for specifying spatial extents, and add an
         option for the `skylines` dict to toggle pixels/wavelength.
+
+        NOTE: as of now this is an unused function for this iteration;
+        call `skysub()` directly!
 
         Parameters:
         -----------
@@ -673,14 +712,15 @@ class PVSlice(DataND):
             # get the wavelengths from the skylines dict
             for k, *v in self.skylines.items():
                 if verbose:
-                    self._logger.info("Masking %s line..."%k)
+                    self._logger.info("Masking %s line..." % k)
 
                 l1, l2 = self.velwave.wav2pix(*v, nearest=True)
                 self.data[p1:p2, l1:l2] = ma.masked
 
-    def skysub(self, arcs=None, unit=u.arcsec, inplace=False, progress=False, spline=False):
+    def skysub(self, arcs=None, unit=u.arcsec, inplace=False, progress=False):
+        #, spline=False):
         '''
-        Iterate over spatial pixels and perform a spline interpolation
+        Iterate over spatial pixels and perform a Chebyshev interpolation
         of the masked skyline regions. This calls `_interp_skylines()`.
 
         Parameters:
@@ -697,7 +737,8 @@ class PVSlice(DataND):
         '''
         
         res = self if inplace else self.copy()
-
+#        print("id of original:", id(self))
+#        print('id of copy: ', id(res))
         if arcs is not None:
             arcs = np.asarray(arcs)
             if unit:
@@ -709,6 +750,9 @@ class PVSlice(DataND):
 
         p1, p2 = arcs
 
+        # get the pixel limits for the sky region
+        l1, l2 = self._get_skylims()
+
         if progress:
             self._logger.info("Interpolating masked regions...")
             f = trange
@@ -719,9 +763,64 @@ class PVSlice(DataND):
             # TODO: find a better way to do this
             data = res.data[p, :]
             try:
-                data[data.mask] = res._interp_skylines(pix=p, spline=spline)
-            except Exception:
+                data[l1:l2] = res._interp_skylines(pix=p, window=[l1, l2])
+            except Exception as e:
+                print(e)
                 pass
             res.data[p, :] = data
 
         return res
+
+    def mean(self, axis=None):
+
+        data = ma.average(self.data, axis=axis)
+
+        if axis is None:
+            return data
+        elif axis == 0:
+            return SpecLine.new_object(self, data=data)
+        elif axis == 1:
+            return SpatLine.new_object(self, data=data)
+
+    def sum(self, axis=None):
+
+        data = ma.sum(self.data, axis=axis)
+
+        if axis is None:
+            return data
+        elif axis == 0:
+            return SpecLine.new_object(self, data=data)
+        elif axis == 1:
+            return SpatLine.new_object(self, data=data)
+
+    def median(self, axis=None):
+
+        data = ma.median(self.data, axis=axis)
+
+        if axis is None:
+            return data
+        elif axis == 0:
+            return SpecLine.new_object(self, data=data)
+        elif axis == 1:
+            return SpatLine.new_object(self, data=data)
+
+    def min(self, axis=None):
+
+        data = np.ma.amin(self.data, axis=axis)
+        if axis is None:
+            return data
+        elif axis == 0:
+            return SpecLine.new_object(self, data=data)
+        elif axis == 1:
+            return SpatLine.new_object(self, data=data)
+
+    def max(self, axis=None):
+        
+        data = np.ma.amax(self.data, axis=axis)
+
+        if axis is None:
+            return data
+        elif axis == 0:
+            return SpecLine.new_object(self, data=data)
+        elif axis == 1:
+            return SpatLine.new_object(self, data=data)

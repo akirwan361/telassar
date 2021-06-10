@@ -120,7 +120,8 @@ class DataND:
             self._mask = np.asarray(val, dtype=bool)
 
     @classmethod
-    def new_object(cls, object, data=None, unit=None, wcs=None, spec=None):
+    def new_object(cls, object, data=None, flux_unit=None, unit=None, wcs=None, 
+                   spec=None):
         '''
         Copy attributes from one object into a new instance
         Needs testing...

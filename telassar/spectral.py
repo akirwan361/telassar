@@ -12,8 +12,10 @@ from .plotter import *
 from .tools import is_notebook
 from .lines import lines
 from .fitter import Modeller, FitStats
+from .domath import MathHandler
 
-class SpecLine(DataND):
+
+class SpecLine(MathHandler, DataND):
 
     _is_spectral = True
 
@@ -259,6 +261,49 @@ class SpecLine(DataND):
         '''
         model = Modeller(self)
         model.fit_model(model_list, coords=coords, mode='components',
-                                 plot=plot, densify=10, emline=None, fig_kws=None,
-                                 ax_kws=None)
+                        plot=plot, densify=10, emline=None, fig_kws=None,
+                        ax_kws=None)
         return model
+
+    def mean(self, lbda_min=None, lbda_max=None, unit=u.angstrom):
+        '''
+        Simply return the mean flux over some wavelength range
+
+        Parameters
+        ----------
+        lbda_min : float
+            lower bound
+        lbda_max : float 
+            upper bound
+        unit : `astropy.units.Unit`
+            if None, assume pixels rather than coords 
+
+        Returns 
+        -------
+        out : float 
+            The mean flux
+        '''
+
+        if unit is not None:
+            l1, l2 = self.velwave.wav2pix([lbda_min, lbda_max], nearest=True)
+        else:
+            l1, l2 = lbda_min+0.5, lbda_max+0.5
+
+        sw = slice(l1, l2+1)
+
+        flux = np.ma.average(self.data[sw])
+        return flux
+
+
+    def sum(self, lbda_min=None, lbda_max=None, unit=u.angstrom):
+
+        if unit is not None:
+            l1, l2 = self.velwave.wav2pix([lbda_min, lbda_max], nearest=True)
+        else:
+            l1, l2 = lbda_min+0.5, lbda_max+0.5
+
+        sw = slice(l1, l2+1)
+
+        flux = np.ma.sum(self.data[sw])
+        return flux
+

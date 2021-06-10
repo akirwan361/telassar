@@ -1,4 +1,4 @@
-from astropy.io import fits
+# from astropy.io import fits
 import astropy.units as u
 from numpy import ma
 import numpy as np
@@ -6,10 +6,10 @@ from lmfit import models
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 
-from .data import DataND
-from .world import Position, VelWave
+# from .data import DataND
+# from .world import Position, VelWave
 from .plotter import *
-from .tools import is_notebook, get_noise1D
+from .tools import get_noise1D
 from .lines import lines
 
 import logging
@@ -34,7 +34,7 @@ class Modeller:
         self.unit = wcs.unit
 
         # convert the flux?
-        self.flux = u.Unit('erg/cm**2/s/Angstrom')#object.flux_unit
+        self.flux = u.Unit('erg/cm**2/s/Angstrom')
 
         if hasattr(object, "_coords") and object._coords is not None:
             self._coords = object._coords
@@ -43,7 +43,7 @@ class Modeller:
 
         self.shape = object.shape
 
-    def wcs2pix(self, val, nearest = False):
+    def wcs2pix(self, val, nearest=False):
         """
         quick methods to prevent a lot of if/else try/except statements
         """
@@ -54,25 +54,23 @@ class Modeller:
 
         if nearest:
             pix = (pix + 0.5).astype(int)
-            np.maximum(pix, 0, out = pix)
+            np.maximum(pix, 0, out=pix)
             if self.shape is not None:
-                np.minimum(pix, self.wcs.shape-1, out = pix)
+                np.minimum(pix, self.wcs.shape-1, out=pix)
         return pix[0] if np.isscalar(val) else pix
 
-    def pix2wcs(self, pix=None, unit = None):
+    def pix2wcs(self, pix=None, unit=None):
 
         if pix is None:
-            pixarr = np.arange(self.wcs.shape, dtype = float)
+            pixarr = np.arange(self.wcs.shape, dtype=float)
         else:
             pixarr = np.atleast_1d(pix)
 
         res = self.wcs.wcs.wcs_pix2world(pixarr, 0)[0]
-        
+
         if self.unit == u.Unit("m/s"):
-            print("in m/s")
-#            unit = u.Unit("km/s")
             res = (res * self.unit).to(u.Unit("km/s")).value
-        
+
         if unit is not None:
             res = (res * self.unit).to(unit).value
 
@@ -91,7 +89,7 @@ class Modeller:
         data = ma.filled(self.data, 0.)
         return data
 
-    def _prep_model(self, model_list, unit = True):
+    def _prep_model(self, model_list, unit=True):
         """
         Allows for a model or list of models to be sent to the model prepper
 
@@ -117,17 +115,17 @@ class Modeller:
 
         # Set the model keys
         model_keys = {
-                'g' : 'GaussianModel',
-                'l' : 'LorentzianModel',
-                'v' : 'VoigtModel'
+                'g': 'GaussianModel',
+                'l': 'LorentzianModel',
+                'v': 'VoigtModel'
                 }
 
         # set the model_data dict with the data we want to model
         model_data = {
-                'x' : xarr,
-                'y' : res,
-                'unit' : xunit,#spec_unit,
-                'model' : []
+                'x': xarr,
+                'y': res,
+                'unit': xunit,#spec_unit,
+                'model': []
                 }
         # Next, make list where 'type' is key and model_key vals are values
         mlist = []
@@ -144,7 +142,7 @@ class Modeller:
         return self.model_info
 
     def make_model(self, model_list, coords=None, prepped_model=None,
-                  unit=True):
+                   unit=True):
         """
         Generate a model using a model list and coord data. This function uses
         `lmfit` to generate the models, perform a least-squares fit, and evaluate
@@ -183,7 +181,6 @@ class Modeller:
         factor = 2 * np.sqrt(np.log(2))
 
         # if no coordinates are provided, make a guess.
-        # TODO: update this for guessing when there are multiple peaks
         if coords is not None:
             coords = np.asarray(coords)
         elif coords is None and self._coords is not None:
@@ -205,11 +202,11 @@ class Modeller:
                                       min=0.5 * peak)
                 model.set_param_hint('center', value=ctr, min=ctr - 1,
                                       max=ctr + 1)
-                model.set_param_hint('sigma', min=1e-6, max=10) #max=30
+                model.set_param_hint('sigma', min=1e-6, max=10)
                 default_params = {
                         prefix+'center': ctr,
                         prefix+'height': peak,
-                        prefix+'sigma': 5,
+                        prefix+'sigma': 2,
                     }
             else:
                 raise NotImplementedError(f"Model {func['type']} not implemented yet")
@@ -264,19 +261,19 @@ class Modeller:
         import matplotlib.pyplot as plt
         # if coords are given, format them and override the class attribute
 
-        if fig_kws is None:
-            fig_kws = {'figsize': (9, 5)}
-        if ax_kws is None:
-            ax_kws = {'drawstyle': 'steps-mid', 'linewidth': 1}
-
-        # Get the emission line for the title?
-        if emline is not None:
-            if emline in lines.keys():
-                emis = lines[emline][2]
-            else:
-                emis = None
-        else:
-            emis=None
+#        if fig_kws is None:
+#            fig_kws = {'figsize': (9, 5)}
+#        if ax_kws is None:
+#            ax_kws = {'drawstyle': 'steps-mid', 'linewidth': 1}
+#
+#        # Get the emission line for the title?
+#        if emline is not None:
+#            if emline in lines.keys():
+#                emis = lines[emline][2]
+#            else:
+#                emis = None
+#        else:
+#            emis=None
 
         if coords is not None:
             try:
@@ -306,41 +303,14 @@ class Modeller:
                 mode=mode,
                 densify=densify,
                 invert_x=invert_x,
-                emline=emline,
-                fig_kws=fig_kws,
-                ax_kws=ax_kws
+#                emline=emline,
+#                fig_kws=None,  # fig_kws,
+#                ax_kws=None,  # ax_kws
             )
-
-#    def get_info(self, convert=True):
-#
-#        """
-#        get the basic information about the fit, ie the centroid and HWHM. this
-#        doesn't worry about converting e.g. angstrom to km/s beccause the main
-#        PVSlice class will handle this in the `radial_velocity` function.
-#        """
-#        from astropy.constants import c
-#
-#        center = []
-#        fwhm = []
-#        sigma = []
-#        
-#
-#        # get the mimimum possible wavelength step of instrument
-##        minstep = self.wcs.get_step()
-#        for key, val in self.fit_result.params.items():
-#            if key.endswith('center'):
-#                center.append(val.value)
-#            if key.endswith('fwhm'):
-#                fwhm.append(val.value)
-#            if key.endswith('sigma'):
-#                sigma.append(val.value)
-#
-#        return np.asarray((center, fwhm, sigma)).T
 
     def get_info(self, as_dataframe=False):
         if hasattr(self, "fit_result"):
             stats = FitStats(self.fit_result)
-            numComp = len(stats._model.components)
             res = stats.return_results(as_dataframe)
             return res
 
@@ -410,14 +380,14 @@ class Modeller:
             fig, ax = plt.subplots(**fig_kws)
         else:
             ax = plt.gca()
-        
+
         # if it exists, is there data?
         if ax.lines:
             pass
         elif ax.collections:
             pass
         else:
-            ax.plot(xarr, yarr, **ax_kws)
+            ax.plot(xarr, yarr, c='k', **ax_kws)
 
         xtype = self.wcs.wcs.wcs.ctype[0]
         xlab = f'{xtype} ({self.unit.to_string("latex")})'
@@ -445,7 +415,7 @@ class Modeller:
                         'xc=%g yc=%g i=%d dist=%g data=%g' %
                         (xc, yc, i, x, self._data[i]))
                 except Exception as e:
-                    print(e)  # for debug
+#                    print(e)  # for debug
                     pass
 
         # NOTE: all `model_data` instances changed to `self.model_info`
@@ -465,7 +435,7 @@ class Modeller:
                 if key.endswith('center'):
                     lab = str(np.round(val, 2)) + self.unit.to_string('latex')
                     ax.axvline(val, ls=':')
-                    plt.text(val + text_offset, y=0.8 * self.model_info['y'].max(),
+                    plt.text(val + text_offset, y=1.0 * self.model_info['y'].max(),
                              s=r' %s'%lab, rotation=90)
             plt.connect('motion_notify_event', on_move)
             ax.set_xlim(x_start, x_stop)
@@ -473,7 +443,7 @@ class Modeller:
 
         if mode.lower() == 'residuals':
             print('Do something')
-
+        return ax
 
 class FitStats:
     '''
@@ -492,7 +462,7 @@ class FitStats:
         self._params = object.params
         self._data = object.data
         self._numComp = len(object.model.components)
-        
+
         self.parse_results()
 
     def parse_results(self):
@@ -501,7 +471,7 @@ class FitStats:
         N = len(self._model.components)
         columns = ['value', 'stderr']
         params = ['amplitude', 'fwhm', 'sigma', 'center', 'cent_err']
-        noise = get_noise1D(self._data, full=False)
+#        noise = get_noise1D(self._data, full=False)
 
         for i in range(N):
             # we will dynamically add attributes to the instance
@@ -512,7 +482,7 @@ class FitStats:
 
             for p in params:
                 filled_params.append([getattr(pars[f'm{i}{p}'], k) for k in columns])
-            
+
             # if any values are None, fix it
             for filled in filled_params:
                 if filled[1] is None:
@@ -538,7 +508,7 @@ class FitStats:
 
             # get the flux
             flux_fac = np.sqrt(2 * np.pi * sigma[0]**2)
-            flux = list(map(lambda x : x * flux_fac, peak))
+            flux = list(map(lambda x: x * flux_fac, peak))
 
             _holder = {
                 'flux': np.array(flux),
@@ -579,9 +549,7 @@ class FitStats:
             import pandas as pd
             param_values = pd.DataFrame(
                     data=param_values,
-                    columns = cols[:5]
+                    columns=cols[:5]
                     )
 
         return param_values
-
-

@@ -6,5 +6,6 @@ from .spatial import *
 from .spectral import *
 from .log import get_logger
 from .lines import *
+from .domath import *
 
 get_logger()
