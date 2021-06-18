@@ -142,7 +142,7 @@ class DataND:
                 unit = None
 
         kwargs = dict(filename=object.filename, data=data, unit=unit,
-                      ext=object.ext, header=object.header.copy())
+                      ext=object.ext, header=object.header)
 
         try:
             kwargs['wcs'] = object.position

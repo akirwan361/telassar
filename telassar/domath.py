@@ -2,10 +2,10 @@ import astropy.units as u
 import numpy as np
 from numpy import ma
 
-#from .data import DataND
+from .data import DataND
+#from .pvslice import PVSlice
 #from .spatial import SpatLine
 #from .spectral import SpecLine
-#from .pvslice import PVSlice
 
 
 def _check_coords(a, b):
@@ -33,8 +33,9 @@ def _check_shape(a, b, dims=slice(None)):
 def _do_math(operation, a, b):
 
     _check_coords(a, b)
-
-    if isinstance(a, SpatLine):
+    
+    if a._is_spatial:
+#    if isinstance(a, SpatLine):
         unit = a.position.unit
     else:
         unit = a.velwave.unit
@@ -52,7 +53,7 @@ def _do_math(operation, a, b):
                                   unit=unit)
 
 
-class MathHandler:
+class MathHandler(DataND):
 
     def __add__(self, other):
         if not isinstance(other, DataND):
@@ -61,6 +62,7 @@ class MathHandler:
             return _do_math(ma.add, self, other)
 
     def __sub__(self, other):
+        print(type(other))
         if not isinstance(other, DataND):
             return self.__class__.new_object(self, data=self._data - other)
         else:

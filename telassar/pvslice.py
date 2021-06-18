@@ -8,8 +8,9 @@ from lmfit import models
 import matplotlib.pyplot as plt
 from numpy.polynomial.chebyshev import chebfit, chebval
 
+from .domath import MathHandler
 from .data import DataND
-from .world import Position, VelWave
+# from .world import Position, VelWave
 from .spatial import SpatLine
 from .spectral import SpecLine
 from .plotter import (ImCoords, get_plot_norm, get_plot_extent,
@@ -17,13 +18,12 @@ from .plotter import (ImCoords, get_plot_norm, get_plot_extent,
                       configure_axes)
 from .lines import lines
 from .tools import parse_badlines
-from .domath import MathHandler
 
 from datetime import datetime
 from tqdm import trange
 
-class PVSlice(MathHandler, DataND):
 
+class PVSlice(MathHandler, DataND):
     '''
     This is to just manage the data shit, but it might
     end up being completely superfluous. We'll find out.
@@ -38,6 +38,7 @@ class PVSlice(MathHandler, DataND):
         pvslice[:, :] = sub-pvslice
         """
         obj = super(PVSlice, self).__getitem__(item)
+
         if isinstance(obj, DataND):
             if obj.ndim == 2:
                 return obj
@@ -417,29 +418,29 @@ class PVSlice(MathHandler, DataND):
         crval1 = self.velwave.get_start()
         crpix1 = 1.
         # let's keep the starting pixel where the world coord is 0
-        crpix2 = round(self.position.offset2pix(0), 2)
+        crpix2 = self.position.offset2pix(0)
         crval2 = 0.
-        cdelt1 = round(self.velwave.get_step(), 2)
-        cdelt2 = round(self.position.get_step(), 2)
+        cdelt1 = self.velwave.get_step()
+        cdelt2 = self.position.get_step()
 
         hdr['NAXIS1'] = (nlbda, "Length of data axis 1")
         hdr['NAXIS2'] = (noff, "Length of data axis 2")
         hdr['CRPIX1'] = (crpix1, "Pixel coordinate at reference point")
         hdr['CRPIX2'] = (crpix2, "Pixel coordinate at reference point")
         hdr['CRVAL1'] = (crval1, "Coordinate value at reference point")
-        hdr['CRVAL1'] = (crval2, "Coordinate value at reference point")
+        hdr['CRVAL2'] = (crval2, "Coordinate value at reference point")
         hdr['CDELT1'] = (cdelt1, "Coordinate increment at reference point")
         hdr['CDELT2'] = (cdelt2, "Coordinate increment at reference point")
-        hdr.pop('CUNIT1')
+        hdr['CUNIT1'] = self.velwave.unit.to_string("fits")
 
         return hdr
 
-    def to_fits(self, fname):
+    def to_fits(self, fname, overwrite=False):
 
         new_hdr = self.update_header()
 
         hdul = fits.PrimaryHDU(data=self.data.data, header=new_hdr)
-        hdul.write("fname.fits")
+        hdul.writeto(fname, overwrite=overwrite)
 
     def radial_velocity(self, ref, lbdas, vcorr=None, unit='angstrom',
                         nearest=False):
@@ -796,6 +797,17 @@ class PVSlice(MathHandler, DataND):
     def median(self, axis=None):
 
         data = ma.median(self.data, axis=axis)
+
+        if axis is None:
+            return data
+        elif axis == 0:
+            return SpecLine.new_object(self, data=data)
+        elif axis == 1:
+            return SpatLine.new_object(self, data=data)
+
+    def std(self, axis=None):
+
+        data = ma.std(self.data, axis=axis)
 
         if axis is None:
             return data
