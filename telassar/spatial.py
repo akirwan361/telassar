@@ -7,13 +7,13 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 
 from .data import DataND
+#from .pvslice import PVSlice
 from .world import Position, VelWave
 from .plotter import *
 from .tools import is_notebook
 from .lines import lines
 from .fitter import Modeller
 from .domath import MathHandler
-
 
 class SpatLine(MathHandler, DataND):
 

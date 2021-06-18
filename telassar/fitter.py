@@ -174,9 +174,18 @@ class Modeller:
         xmin = x.min()
         ymin = y.min()
 
+        # I haven't figured out a good way to make general initial 
+        # parameters for both WFM and NFM, so this is an ugly 
+        # workaround
+        if np.diff(x)[0] < 0.2:
+            cstep = 0.05
+            siginit = 0.08
+        else:
+            cstep = 1
+            siginit = 1
+
         # estimate the noise
         noise = get_noise1D(y, full=False)
-
         # conversion factor: 2 sqrt(ln(2))
         factor = 2 * np.sqrt(np.log(2))
 
@@ -199,14 +208,14 @@ class Modeller:
             if func['type'] in ['GaussianModel', 'LorentzianModel',
                                 'VoigtModel']:
                 model.set_param_hint('amplitude', value=1.1*peak,
-                                      min=0.5 * peak)
-                model.set_param_hint('center', value=ctr, min=ctr - 1,
-                                      max=ctr + 1)
+                                      min=0.8 * peak)
+                model.set_param_hint('center', value=ctr, min=ctr - cstep,
+                                      max=ctr + cstep)
                 model.set_param_hint('sigma', min=1e-6, max=10)
                 default_params = {
                         prefix+'center': ctr,
                         prefix+'height': peak,
-                        prefix+'sigma': 2,
+                        prefix+'sigma': siginit,
                     }
             else:
                 raise NotImplementedError(f"Model {func['type']} not implemented yet")
@@ -260,21 +269,6 @@ class Modeller:
         """
         import matplotlib.pyplot as plt
         # if coords are given, format them and override the class attribute
-
-#        if fig_kws is None:
-#            fig_kws = {'figsize': (9, 5)}
-#        if ax_kws is None:
-#            ax_kws = {'drawstyle': 'steps-mid', 'linewidth': 1}
-#
-#        # Get the emission line for the title?
-#        if emline is not None:
-#            if emline in lines.keys():
-#                emis = lines[emline][2]
-#            else:
-#                emis = None
-#        else:
-#            emis=None
-
         if coords is not None:
             try:
                 coords = np.asarray(coords, dtype=np.float64)
@@ -292,20 +286,21 @@ class Modeller:
         xarr = self.model_info['x']
         yarr = self.model_info['y']
 
-        result = model_data.fit(yarr, params, x=xarr, nan_policy='omit')
+        # estimate the noise
+#        noise = get_noise1D(yarr, full=True)
+#        print(coords)
+        weights = None  # abs(coords[0][1] / noise)
+        result = model_data.fit(yarr, params, x=xarr, nan_policy='omit', weights=weights)
         self.fit_result = result
 
         # make a dense array for curve plotting
-        x_dense = np.arange(xarr[0], xarr[-1], (xarr[1] - xarr[0])/densify)
+#        x_dense = np.arange(xarr[0], xarr[-1], (xarr[1] - xarr[0])/densify)
 
         if plot:
             self.plot(
                 mode=mode,
                 densify=densify,
                 invert_x=invert_x,
-#                emline=emline,
-#                fig_kws=None,  # fig_kws,
-#                ax_kws=None,  # ax_kws
             )
 
     def get_info(self, as_dataframe=False):
@@ -394,12 +389,12 @@ class Modeller:
 
         # do we want to invert the x-axis?
         if invert_x:
-            text_offset = -0.5
+            text_offset = -1.5 * np.diff(xarr)[0]
             x_start = self.wcs.get_stop()
             x_stop = self.wcs.get_start()
             arm = str(' (Blue)')
         else:
-            text_offset = 0.5
+            text_offset = 1.5 * np.diff(xarr)[0]
             x_start = self.wcs.get_start()
             x_stop = self.wcs.get_stop()
             arm = str(' (Red)')
@@ -439,6 +434,7 @@ class Modeller:
                              s=r' %s'%lab, rotation=90)
             plt.connect('motion_notify_event', on_move)
             ax.set_xlim(x_start, x_stop)
+            ax.set_ylim(ax.get_ylim()[0], 1.2 * self.model_info['y'].max())
             plt.tight_layout()
 
         if mode.lower() == 'residuals':
