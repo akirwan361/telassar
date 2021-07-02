@@ -167,8 +167,12 @@ class PVSlice(MathHandler, DataND):
 
         sx = slice(pmin, pmax+1)
         sy = slice(lmin, lmax+1)
-
-        res = self.data[sx, sy].sum(axis=1)
+        
+        # let's try something wild here
+#        res = self.data[sx, sy].sum(axis=1)
+        new_wave = self.velwave.pix2wav(np.arange(lmin, lmax+1))
+        print(new_wave)
+        res = np.trapz(self.data[sx, sy], x=new_wave, axis=1)
         wcs = self.position[sx]
         return SpatLine(data=res, wcs=wcs, unit=self.position.unit)
 
