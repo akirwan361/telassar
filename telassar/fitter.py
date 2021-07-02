@@ -207,11 +207,14 @@ class Modeller:
 
             if func['type'] in ['GaussianModel', 'LorentzianModel',
                                 'VoigtModel']:
-                model.set_param_hint('amplitude', value=1.1*peak,
+                model.set_param_hint('amplitude', value=1.1 * peak,
                                       min=0.8 * peak)
-                model.set_param_hint('center', value=ctr, min=ctr - cstep,
-                                      max=ctr + cstep)
-                model.set_param_hint('sigma', min=1e-6, max=10)
+                model.set_param_hint('center', value=ctr, min=0.975*ctr,
+                                     max=1.025*ctr)
+#                        ctr - cstep,
+#                                      max=ctr + cstep)
+                model.set_param_hint('sigma', min=1e-6, max=5 * np.diff(x)[0])
+#                        max=10)
                 default_params = {
                         prefix+'center': ctr,
                         prefix+'height': peak,
