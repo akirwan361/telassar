@@ -161,7 +161,7 @@ class SpatLine(MathHandler, DataND):
         '''
         model = Modeller(self)
         model.fit_model(model_list, coords=coords, mode='components',
-                        plot=plot, densify=10) #, emline=None, fig_kws=None,
+                        plot=plot, densify=10, weight=weight) #, emline=None, fig_kws=None,
 #                        ax_kws=None)
         return model
 

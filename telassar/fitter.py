@@ -208,7 +208,7 @@ class Modeller:
             if func['type'] in ['GaussianModel', 'LorentzianModel',
                                 'VoigtModel']:
                 model.set_param_hint('amplitude', value=1.1 * peak,
-                                      min=0.8 * peak)
+                                      min=1e-6)
                 model.set_param_hint('center', value=ctr, min=0.975*ctr,
                                      max=1.025*ctr)
 #                        ctr - cstep,
@@ -244,7 +244,7 @@ class Modeller:
 
     def fit_model(self, model_list, coords=None, mode='components', plot=False,
                   densify=10, invert_x=False, emline=None, fig_kws=None,
-                  ax_kws=None):
+                  ax_kws=None, weight=False):
 
         """
         Fit a model or composite model based on user specified parameters.
@@ -292,7 +292,7 @@ class Modeller:
         # estimate the noise
 #        noise = get_noise1D(yarr, full=True)
 #        print(coords)
-        weights = None  # abs(coords[0][1] / noise)
+        weights = 1./ np.ma.sqrt(abs(yarr)) if weight else None  # abs(coords[0][1] / noise)
         result = model_data.fit(yarr, params, x=xarr, nan_policy='omit', weights=weights)
         self.fit_result = result
 
