@@ -5,6 +5,7 @@ import numpy as np
 from lmfit import models
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
+from itertools import chain
 
 # from .data import DataND
 # from .world import Position, VelWave
@@ -300,11 +301,12 @@ class Modeller:
 #        x_dense = np.arange(xarr[0], xarr[-1], (xarr[1] - xarr[0])/densify)
 
         if plot:
-            self.plot(
+            ax = self.plot(
                 mode=mode,
                 densify=densify,
                 invert_x=invert_x,
             )
+#            return ax
 
     def get_info(self, as_dataframe=False):
         if hasattr(self, "fit_result"):
@@ -351,7 +353,7 @@ class Modeller:
 #                log("%8s %8s" % (c, f))
 
     def plot(self, mode='components', densify=10, invert_x=False, emline=None,
-             ax_kws=None, fig_kws=None):
+             ax_kws=None, fig_kws=None, ax=None):
         '''convenience function'''
 
         if fig_kws is None:
@@ -369,15 +371,16 @@ class Modeller:
         # get the x and y data
         xarr = self.model_info['x']
         yarr = self.model_info['y']
-
+        step = np.diff(xarr)[0]
         # make a dense array for curve plotting
         x_dense = np.arange(xarr[0], xarr[-1], (xarr[1] - xarr[0])/densify)
 
         # Does a figure exist?
-        if not plt.get_fignums():
+#        if not plt.get_fignums():
+        if ax is None:
             fig, ax = plt.subplots(**fig_kws)
         else:
-            ax = plt.gca()
+            ax = ax  # plt.gca()
 
         # if it exists, is there data?
         if ax.lines:
@@ -389,15 +392,16 @@ class Modeller:
 
         xtype = self.wcs.wcs.wcs.ctype[0]
         xlab = f'{xtype} ({self.unit.to_string("latex")})'
+        funit = u.erg / u.s / u.cm**2
 
         # do we want to invert the x-axis?
         if invert_x:
-            text_offset = -1.5 * np.diff(xarr)[0]
+            text_offset = -1.5 * step
             x_start = self.wcs.get_stop()
             x_stop = self.wcs.get_start()
             arm = str(' (Blue)')
         else:
-            text_offset = 1.5 * np.diff(xarr)[0]
+            text_offset = 1.5 * step
             x_start = self.wcs.get_start()
             x_stop = self.wcs.get_stop()
             arm = str(' (Red)')
@@ -416,11 +420,15 @@ class Modeller:
 #                    print(e)  # for debug
                     pass
 
-        # NOTE: all `model_data` instances changed to `self.model_info`
         if mode.lower() == 'components':
             components = self.fit_result.eval_components(x=x_dense)
-            for i, model in enumerate(self.model_info['model']):
-                ax.plot(x_dense, components[f'm{i}'], **ax_kws)
+            for i in range(len(self.model_info['model'])):
+                fitted = components[f'm{i}']
+                ax.plot(x_dense, fitted, **ax_kws)
+                ax.fill_between(x_dense, fitted.min(), fitted, alpha=0.5)
+                print("Peak %s flux: %0.3e %s" % (i + 1,
+                    np.trapz(fitted, x=x_dense)*1e-20,
+                    funit))
             ax.set_xlabel(xlab)
             ax.set_ylabel(r'Flux ($F_{\lambda}$)')
 
@@ -428,20 +436,22 @@ class Modeller:
                 ax.set_title(emis + arm)
 
             # make centroid labels?
-            for key, value in self.fit_result.params.items():
+            for i, (key, value) in enumerate(self.fit_result.params.items()):
                 val = value.value
                 if key.endswith('center'):
-                    lab = str(np.round(val, 2)) + self.unit.to_string('latex')
+                    lab = self.unit.to_string('latex')
                     ax.axvline(val, ls=':')
-                    plt.text(val + text_offset, y=1.0 * self.model_info['y'].max(),
-                             s=r' %s'%lab, rotation=90)
+                    ax.text(val + text_offset, y=1.0 * self.model_info['y'].max(),
+                             s=r' %0.3g %s' % (val, lab), rotation=90, fontsize=14)
             plt.connect('motion_notify_event', on_move)
             ax.set_xlim(x_start, x_stop)
-            ax.set_ylim(ax.get_ylim()[0], 1.2 * self.model_info['y'].max())
-            plt.tight_layout()
+            ax.set_ylim(ax.get_ylim()[0], 1.3 * self.model_info['y'].max())
+#            plt.tight_layout()
 
         if mode.lower() == 'residuals':
-            print('Do something')
+            full_model = self.fit_result.eval(x=x_dense)
+            ax.plot(x_dense, full_model, **ax_kws)
+            
         return ax
 
 class FitStats:
@@ -532,23 +542,65 @@ class FitStats:
                 e = np.round(e, 2)
                 log('%8s : %8s +/- %s' % (k.title(), v, e))
 
+#    def return_results(self, as_dataframe=False):
+#
+#        param_values = []
+#        cols = []
+#        N = self._numComp
+#        for i in range(N):
+#            for k, (v, e) in getattr(self, f'model_{i}').items():
+#                param_values.append(v)
+#                cols.append(k)
+#
+#        try:
+#            print(N)
+#            print(cols)
+#            param_values = np.asarray(param_values).reshape((N, 5))
+#        except Exception:
+##            print(param_values)
+#            pass
+#
+#        if as_dataframe:
+#            import pandas as pd
+#            param_values = pd.DataFrame(
+#                    data=param_values,
+#                    columns=cols[:5]
+#            )
+#
+#        return param_values
+
     def return_results(self, as_dataframe=False):
 
         param_values = []
-        cols = []
+        columns = []
         N = self._numComp
         for i in range(N):
             for k, (v, e) in getattr(self, f'model_{i}').items():
-                param_values.append(v)
-                cols.append(k)
+                param_values.append([v, e])
+                columns.append([k, k + "_err"])
 
-        param_values = np.asarray(param_values).reshape((N, 5))
+        # flatten the columns list and get the unique values
+        # in the order they appear, i.e. NOT sorted!
+        columns = list(chain(*columns))
+        
+        indexes = np.unique(columns, return_index=True)[1]
+        columns = [columns[index] for index in sorted(indexes)]
+
+        # make a dictionary
+        ddict = dict.fromkeys(columns, [])
+        shape = (N, len(ddict))
+        param_values = np.asarray(param_values).reshape(shape).T
+
+        for k, v in zip(ddict.keys(), param_values):
+            ddict[k] = v
 
         if as_dataframe:
             import pandas as pd
             param_values = pd.DataFrame(
-                    data=param_values,
-                    columns=cols[:5]
-                    )
-
-        return param_values
+                    ddict
+#                    data=param_values,
+#                    columns=columns
+            )
+            return param_values
+        else:
+            return ddict
