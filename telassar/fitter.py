@@ -208,8 +208,7 @@ class Modeller:
 
             if func['type'] in ['GaussianModel', 'LorentzianModel',
                                 'VoigtModel']:
-                model.set_param_hint('amplitude', value=1.1 * peak,
-                                      min=1e-6)
+                model.set_param_hint('amplitude', value=peak, min=1e-6)
                 model.set_param_hint('center', value=ctr, min=0.975*ctr,
                                      max=1.025*ctr)
 #                        ctr - cstep,
@@ -229,7 +228,7 @@ class Modeller:
 
             # we have some custom parameters we want to send, as well
             model_params.add(f"{prefix}fwhm", expr=f"2.3584*{prefix}sigma")
-            model_params.add(f"{prefix}snr", expr=f"{prefix}amplitude / {noise}")
+            model_params.add(f"{prefix}snr", expr=f"{prefix}height/ {noise}")
             model_params.add(f"{prefix}cent_err", expr=f"{prefix}fwhm / ({factor}*{prefix}snr)")
 
             if params is None:
@@ -294,7 +293,9 @@ class Modeller:
 #        noise = get_noise1D(yarr, full=True)
 #        print(coords)
         weights = 1./ np.ma.sqrt(abs(yarr)) if weight else None  # abs(coords[0][1] / noise)
-        result = model_data.fit(yarr, params, x=xarr, nan_policy='omit', weights=weights)
+        result = model_data.fit(yarr, params, x=xarr, nan_policy='omit',
+                weights=weights,
+                method='least_squares')
         self.fit_result = result
 
         # make a dense array for curve plotting
@@ -372,6 +373,10 @@ class Modeller:
         xarr = self.model_info['x']
         yarr = self.model_info['y']
         step = np.diff(xarr)[0]
+
+        # let's try to fix the flux units?
+#        yarr *= 1e-20
+
         # make a dense array for curve plotting
         x_dense = np.arange(xarr[0], xarr[-1], (xarr[1] - xarr[0])/densify)
 
@@ -479,7 +484,7 @@ class FitStats:
         pars = self._params
         N = len(self._model.components)
         columns = ['value', 'stderr']
-        params = ['amplitude', 'fwhm', 'sigma', 'center', 'cent_err']
+        params = ['amplitude', 'height', 'fwhm', 'sigma', 'center', 'cent_err']
 #        noise = get_noise1D(self._data, full=False)
 
         for i in range(N):
@@ -497,27 +502,14 @@ class FitStats:
                 if filled[1] is None:
                     filled[1] = filled[0] * 0.1
 
-#            # this is old; 
-#            peak = []
-#            fwhm = []
-#            center = []
-#            sigma = []
-
-#            for k in columns:
-#                # append values to the lists
-#                peak.append(getattr(pars[f'm{i}amplitude'], k))
-#                fwhm.append(getattr(pars[f'm{i}fwhm'], k))
-#                center.append(getattr(pars[f'm{i}center'], k))
-#                sigma.append(getattr(pars[f'm{i}sigma'], k))
-
-            peak, fwhm, sigma, center, centerr = filled_params
+            flux, peak, fwhm, sigma, center, centerr = filled_params
 
             # assign the true centroid error to the centroid array
             center[1] = centerr[0]
 
             # get the flux
-            flux_fac = np.sqrt(2 * np.pi * sigma[0]**2)
-            flux = list(map(lambda x: x * flux_fac, peak))
+#            flux_fac = np.sqrt(2 * np.pi * sigma[0]**2)
+#            flux = list(map(lambda x: x * flux_fac, peak))
 
             _holder = {
                 'flux': np.array(flux),
