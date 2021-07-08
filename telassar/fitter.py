@@ -4,7 +4,8 @@ from numpy import ma
 import numpy as np
 from lmfit import models
 import matplotlib.pyplot as plt
-from matplotlib.ticker import AutoMinorLocator
+# from matplotlib.ticker import AutoMinorLocator
+import matplotlib.transforms as transforms
 from itertools import chain
 
 # from .data import DataND
@@ -35,7 +36,7 @@ class Modeller:
         self.unit = wcs.unit
 
         # convert the flux?
-        self.flux = u.Unit('erg/cm**2/s/Angstrom')
+        self.flux = u.Unit('erg/cm**2/s')
 
         if hasattr(object, "_coords") and object._coords is not None:
             self._coords = object._coords
@@ -180,7 +181,7 @@ class Modeller:
         # workaround
         if np.diff(x)[0] < 0.2:
             cstep = 0.05
-            siginit = 0.08
+            siginit = 0.1
         else:
             cstep = 1
             siginit = 1
@@ -208,16 +209,18 @@ class Modeller:
 
             if func['type'] in ['GaussianModel', 'LorentzianModel',
                                 'VoigtModel']:
-                model.set_param_hint('amplitude', value=peak, min=1e-6)
+                model.set_param_hint('amplitude', value=1.1 * peak, min=1e-6)
+#                        max=1.1 * peak)
                 model.set_param_hint('center', value=ctr, min=0.975*ctr,
                                      max=1.025*ctr)
 #                        ctr - cstep,
 #                                      max=ctr + cstep)
-                model.set_param_hint('sigma', min=1e-6, max=5 * np.diff(x)[0])
+                model.set_param_hint('sigma', min=1e-6, max=10* np.diff(x)[0])
 #                        max=10)
                 default_params = {
                         prefix+'center': ctr,
-                        prefix+'height': peak,
+#                        prefix+'height': peak
+                        prefix+'amplitude': peak,
                         prefix+'sigma': siginit,
                     }
             else:
@@ -398,7 +401,8 @@ class Modeller:
         xtype = self.wcs.wcs.wcs.ctype[0]
         xlab = f'{xtype} ({self.unit.to_string("latex")})'
         funit = u.erg / u.s / u.cm**2
-
+        trans = transforms.blended_transform_factory(
+                ax.transData, ax.transAxes)
         # do we want to invert the x-axis?
         if invert_x:
             text_offset = -1.5 * step
@@ -427,6 +431,9 @@ class Modeller:
 
         if mode.lower() == 'components':
             components = self.fit_result.eval_components(x=x_dense)
+            full_fit = self.fit_result.eval(x=x_dense)
+
+            ax.plot(x_dense, full_fit, 'r--', lw=1)
             for i in range(len(self.model_info['model'])):
                 fitted = components[f'm{i}']
                 ax.plot(x_dense, fitted, **ax_kws)
@@ -446,8 +453,10 @@ class Modeller:
                 if key.endswith('center'):
                     lab = self.unit.to_string('latex')
                     ax.axvline(val, ls=':')
-                    ax.text(val + text_offset, y=1.0 * self.model_info['y'].max(),
-                             s=r' %0.3g %s' % (val, lab), rotation=90, fontsize=14)
+                    ax.text(val + text_offset, y=0.75,
+#                            y=1.0 * self.model_info['y'].max(),
+                             s=r' %0.3g %s' % (val, lab), rotation=90, fontsize=14,
+                             transform=trans)
             plt.connect('motion_notify_event', on_move)
             ax.set_xlim(x_start, x_stop)
             ax.set_ylim(ax.get_ylim()[0], 1.3 * self.model_info['y'].max())
