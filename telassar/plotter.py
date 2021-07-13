@@ -75,6 +75,8 @@ def get_plot_extent(wcs_obj, spec_obj):
     '''
     Assuming a `PVSlice.world` object is passed, get the extents for plotting
     '''
+    
+#    if spec_obj is not Non
     xmin = spec_obj.get_start()
     xmax = spec_obj.get_stop()
     ymin = wcs_obj.get_start()

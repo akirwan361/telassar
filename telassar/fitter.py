@@ -183,7 +183,7 @@ class Modeller:
             cstep = 0.05
             siginit = 0.1
         else:
-            cstep = 1
+            cstep = 1.
             siginit = 1
 
         # estimate the noise
@@ -215,7 +215,8 @@ class Modeller:
                                      max=1.025*ctr)
 #                        ctr - cstep,
 #                                      max=ctr + cstep)
-                model.set_param_hint('sigma', min=1e-6, max=10* np.diff(x)[0])
+                model.set_param_hint('sigma', value=siginit, min=1e-6,
+                        max=10 * np.diff(x)[0])
 #                        max=10)
                 default_params = {
                         prefix+'center': ctr,
@@ -310,7 +311,7 @@ class Modeller:
                 densify=densify,
                 invert_x=invert_x,
             )
-#            return ax
+            return ax
 
     def get_info(self, as_dataframe=False):
         if hasattr(self, "fit_result"):

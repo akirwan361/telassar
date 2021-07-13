@@ -64,7 +64,7 @@ class SpecLine(MathHandler, DataND):
                 self.data[:pmin] = ma.masked
                 self.data[pmax+1:] = ma.masked
 
-    def integrate(self, lmin = None, lmax = None, unit = None):
+    def integrate(self, wave=None, unit=u.arcsec):
         """
         This will integrate the (non-corrected) flux over a spectral range using
         a simple Simpson's Rule.
@@ -95,71 +95,25 @@ class SpecLine(MathHandler, DataND):
         out : we'll see
         """
 
-        # get the indices of the specified ranges and all that
-        # i1 is index; l1 is wave/velocity
-        if lmin is None:
-            i1 = 0
-            lmin = self.velwave.pix2wav(-0.5)
-            #print(f'lmin = {lmin}')
-        else:
-            if unit is None:
-                l1 = lmin
-                lmin = self.velwave.pix2wav(max(-0.5, l1))
+        if wave is not None:
+            wave = np.asarray(wave)
+            if unit:
+                wave = self.velwave.wav2pix(wave, nearest=True)
             else:
-                l1 = self.velwave.wav2pix(lmin, nearest=False)
-            i1 = max(0, int(l1))
-
-        if lmax is None:
-            i2 = self.shape[0]
-            lmax = self.velwave.pix2wav(i2 - 0.5)
+                wave = wave.astype(int)
         else:
-            if unit is None:
-                i2 = lmax
-                lmax = self.velwave.pix2wav(min(self.shape[0] - 0.5, l2))
-            else:
-                l2 = self.velwave.wav2pix(lmax, nearest=False)
-            i2 = min(self.shape[0], int(l2) + 1)
+            wave = np.asarray([0, self.shape[0]])
 
-        # to work around the array limits, we'll take the lower wavelength or
-        # velocity of each pixel + 1 pixel at the end
-        d = self.velwave.pix2wav(-0.5 + np.arange(i1, i2+1))
+        # we want the effective spectral range
+        l1, l2 = wave
+        spec = self.velwave.pix2wav(np.arange(l1, l2))
 
-        # truncate or extend the first and last pixels to the start/end of
-        # the values in the spectrum
-        d[0] = lmin
-        d[-1] = lmax
+        data = self.data[l1:l2]
 
-        if unit is None:
-            unit = self.velwave.unit
+        # integrate over the spectral range with the trapezoidal method
 
-        # get the data over the range
-        data = self.data[i1:i2]
-
-        # do the units agree?
-        if unit in self.flux_unit.bases:
-            out_unit = self.flux_unit * unit
-        else:
-            try:
-                # sort out flux density
-                wunit = (set(self.flux_unit.bases) &
-                         set([u.pm, u.angstrom, u.nm, u.um])).pop()
-
-                # scale the wavelength axis
-                d *= unit.to(wunit)
-
-                # final units
-                out_unit = self.flux_unit * wunit
-
-            # if there's an error anywhere, just return unchanged units
-            except Exception:
-                out_unit = self.flux_unit * unit
-
-        # standard integration: each pixel value is multiplied by the difference
-        # in wavelength from the start of the pixel to the start of the next
-        flux = (data * np.diff(d)).sum() * out_unit
-
+        flux = np.trapz(y=data, x=spec)
         return flux
-
 
     def plot(self, **kwargs):
         """

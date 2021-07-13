@@ -42,7 +42,11 @@ class DataND:
             self._data = hdul[self.ext].data
 
             if 'BUNIT' in self.header:
-                self.flux_unit = u.Unit(self.header['BUNIT'])
+                try:
+                    self.flux_unit = u.Unit(self.header['BUNIT'])
+                except Exception:
+                    # it might be COUNTS
+                    self.flux_unit = u.adu
             else:
                 self.flux_unit = u.dimensionless_unscaled
 

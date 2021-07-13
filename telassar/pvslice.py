@@ -37,6 +37,9 @@ class PVSlice(MathHandler, DataND):
         pvslice[i, :] = spectral profile
         pvslice[:, :] = sub-pvslice
         """
+        print("Item type: ", type(item))
+        print("Self type: ", type(self))
+        print(super(PVSlice, self))
         obj = super(PVSlice, self).__getitem__(item)
 
         if isinstance(obj, DataND):
@@ -171,7 +174,7 @@ class PVSlice(MathHandler, DataND):
         # let's try something wild here
 #        res = self.data[sx, sy].sum(axis=1)
         new_wave = self.velwave.pix2wav(np.arange(lmin, lmax+1))
-        print(new_wave)
+#        print(new_wave)
         res = np.trapz(self.data[sx, sy], x=new_wave, axis=1)
         wcs = self.position[sx]
         return SpatLine(data=res, wcs=wcs, unit=self.position.unit)
@@ -217,7 +220,7 @@ class PVSlice(MathHandler, DataND):
             lmax = min(self.shape[1], int(wave[1] + 0.5))
 
         if spat_unit:
-            pmin = max(0, self.position.offset2pix(a1, nearest=True))
+            pmin = max(0, int(self.position.offset2pix(a1, nearest=True)))
             pmax = min(self.shape[0], self.position.offset2pix(a2, nearest=True))
         else:
             pmin = max(0, int(a1 + 0.5))
@@ -226,7 +229,8 @@ class PVSlice(MathHandler, DataND):
         sx = slice(pmin, pmax + 1)
         sy = slice(lmin, lmax + 1)
 
-        res = self.data[sx, sy].sum(axis=0)
+        new_arc = self.position.pix2offset(np.arange(pmin, pmax+1))
+        res = np.trapz(self.data[sx, sy], x=new_arc, axis=0)
         spec = self.velwave[sy]
 
         return SpecLine(data=res, spec=spec, unit=self.velwave.unit,

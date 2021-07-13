@@ -223,3 +223,28 @@ def get_noise1D(flux, full=False):
         noise = np.asarray(noise)
 
     return noise
+
+def vac2air(lbda):
+    '''
+    In case you need to convert vacuum wavelength to air. Note that this
+    requires a `lbda` value in units of Angstrom. This equation follows 
+    the IAU standard, from Morton 2000, ApJ Suppl., 130, 403
+
+    https://ui.adsabs.harvard.edu/abs/2000ApJS..130..403M/abstract
+    '''
+    s = 10e4 / lbda
+    n = 1. + 8.34253e-5 + 2406147e-2 / (130 - s**2) \
+            + 1.5998e-4 / (39.8 - s**2)
+
+    return lbda / n
+
+
+def air2vac(lbda):
+    '''
+    Convert a wavelength value (in units of Angstrom) from air to vacuum.
+    '''
+    s = 10e4 / lbda
+    n = 1 + 0.8336624212083e-5 + 2.408926869968e-2 / (130.1065924522 - s**2) \
+            + 1.599740894897e-4 / (38.92568793293 - s**2)
+
+    return lbda * n

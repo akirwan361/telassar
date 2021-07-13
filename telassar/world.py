@@ -33,12 +33,6 @@ def wcs_from_header(header):
                 cunit = u.Unit(hdr.pop('CUNIT%d'%i))
     except KeyError:
         pass
-    # if 'CUNIT3' in hdr:
-    #     cunit = u.Unit(hdr.pop('CUNIT3'))
-    # elif 'CUNIT2' in hdr:
-    #     cunit = u.Unit(hdr.pop('CUNIT2'))
-    # else:
-    #     cunit = u.Unit('angstrom')
 
     try:
         n = hdr['NAXIS']
@@ -54,15 +48,9 @@ def wcs_from_header(header):
     old_shape = mywcs.pixel_shape
 
     if mywcs.wcs.has_cd():
-        #print('Has CD')
-        #try:
         cdelt = get_cdelt_from_cd(mywcs.wcs.cd)
-        #except IndexError:
-        #    cdelt = mywcs.wcs.cd
-#        print(cdelt)
 
     elif mywcs.wcs.has_pc():
-        #print('Has PC')
         try:
             cd = np.dot(np.diag(mywcs.wcs.get_cdelt()), mywcs.wcs.get_pc())
             cdelt = get_cdelt_from_cd(cd)
@@ -73,11 +61,14 @@ def wcs_from_header(header):
         del mywcs.wcs.cd
 
     if n==3:
+        # if it's a cube, the wavelength is the third axis
+        crpix1 = hdr['CRPIX3']
         nz, ny = old_shape[::-1][:2]
         new_wcs = mywcs.sub([WCSSUB_SPECTRAL, 0])
         new_wcs.pixel_shape = (nz, ny)
 
     if n==2:
+        crpix1 = hdr['CRPIX1']
         new_wcs = mywcs.copy()
 
     crpix2 = hdr['CRPIX2']
@@ -90,7 +81,7 @@ def wcs_from_header(header):
     else:
         ctype1 = 'AWAV'
 
-    new_wcs.wcs.crpix = [1., crpix2]
+    new_wcs.wcs.crpix = [crpix1, crpix2]
     new_wcs.wcs.cdelt = cdelt
     new_wcs.wcs.ctype = [ctype1, ctype2]
 
@@ -98,8 +89,6 @@ def wcs_from_header(header):
     # as the cd**2
     new_wcs.wcs.pc = np.diag([1., 1.])
 
-
-    #new_wcs.wcs.cunit[1] = u.Unit('arcsec')
     return new_wcs
 
 class Position:
