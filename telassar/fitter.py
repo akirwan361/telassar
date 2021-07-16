@@ -269,11 +269,21 @@ class Modeller:
             if not None, the data will be refined by the `densify` factor by:
                 dense_array = np.arange(xarr[0], xarr[-1], xarr_step / densify)
             where the `xarr_step` is just the step value of the array
+        emline : str or int, optional
+            basically just a plot title
+        fig_kws : dict or None, optional
+            a keyword dictionary to be passed to matplotlib to format the figure
+        ax_kws : dict or None, optional
+            a keyword dictionary to be passed to matplotlib to format the axes
+        weight : array-like or None
+            an array of weights to pass to `lmfit`; if None, the weight is 
+            unity 
 
         Returns
         ------------
         out : `lmfit.models.results` or whatever it is
         """
+
         import matplotlib.pyplot as plt
         # if coords are given, format them and override the class attribute
         if coords is not None:
@@ -293,13 +303,23 @@ class Modeller:
         xarr = self.model_info['x']
         yarr = self.model_info['y']
 
-        # estimate the noise
-#        noise = get_noise1D(yarr, full=True)
-#        print(coords)
-        weights = 1./ np.ma.sqrt(abs(yarr)) if weight else None  # abs(coords[0][1] / noise)
+        # if weight is passed, is it the same shape as the data?
+#        if weight is not None:
+#            if weight.shape == yarr.shape:
+#                weights = weight
+#            elif isinstance(weight, (float, int)):
+#                weights = np.zeros(yarr.shape) 
+#                weights[:] 1/weight
+#        elif weight is 
+
+#        weights = noise / np.ma.sqrt(abs(yarr)) if weight else None  
+        noise = np.std(get_noise1D(yarr, full=True))
+        weights = weight if weight is not None else None
+#        weights = np.ma.sqrt(abs(yarr) / noise) if weight is None else weight
         result = model_data.fit(yarr, params, x=xarr, nan_policy='omit',
                 weights=weights,
-                method='least_squares')
+                method='least_squares'
+                )
         self.fit_result = result
 
         # make a dense array for curve plotting
@@ -332,30 +352,6 @@ class Modeller:
 
             stats.print_results()
 
-#    def info(self):
-
-#        """
-#        Print the info if you want it
-#        """
-#
-#        log = self._logger.info
-#        shape_str = (' x '.join(str(x) for x in self.shape)
-#                    if self.shape is not None else 'no shape')
-#
-#        data = ('no data' if self.data is None else f'.data({shape_str})')
-#        xunit = str(self.unit)
-#        yunit = ('no unit' if self.flux is None else str(self.flux))
-#
-##        log('%s (%s, %s)', data, xunit, yunit)
-#        self.wcs.info()
-#
-#        # has a fit been made?
-#        if hasattr(self, "fit_result"):
-#            center, fwhm, sigma = np.round(self.get_info().T, 2)
-#            log("Fit Info (in %s)" % self.unit)
-#            log("%8s %8s" % ('Centroid', 'FWHM'))
-#            for c, f in zip(center, fwhm):
-#                log("%8s %8s" % (c, f))
 
     def plot(self, mode='components', densify=10, invert_x=False, emline=None,
              ax_kws=None, fig_kws=None, ax=None):
@@ -456,7 +452,7 @@ class Modeller:
                     ax.axvline(val, ls=':')
                     ax.text(val + text_offset, y=0.75,
 #                            y=1.0 * self.model_info['y'].max(),
-                             s=r' %0.3g %s' % (val, lab), rotation=90, fontsize=14,
+                             s=r' %0.3f %s' % (val, lab), rotation=90, fontsize=14,
                              transform=trans)
             plt.connect('motion_notify_event', on_move)
             ax.set_xlim(x_start, x_stop)
@@ -466,8 +462,9 @@ class Modeller:
         if mode.lower() == 'residuals':
             full_model = self.fit_result.eval(x=x_dense)
             ax.plot(x_dense, full_model, **ax_kws)
-            
+
         return ax
+
 
 class FitStats:
     '''

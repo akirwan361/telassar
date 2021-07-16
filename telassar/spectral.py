@@ -196,7 +196,7 @@ class SpecLine(MathHandler, DataND):
 
         self._coords = coords
 
-    def fit_model(self, model_list, coords=None, plot=True, weight=False):
+    def fit_model(self, model_list, coords=None, plot=True, weight=None, mode='components'):
         '''
         A convenient wrapper around the `Modeller` class to prepare
         and fit a model.
@@ -213,11 +213,17 @@ class SpecLine(MathHandler, DataND):
         plot : bool
             if you want it plotted
         '''
+        if mode.lower() not in ['components', 'residuals']:
+            mode = 'components'
         model = Modeller(self)
-        model.fit_model(model_list, coords=coords, mode='components',
-                        plot=plot, densify=10, emline=None, fig_kws=None,
-                        ax_kws=None)
-        return model
+        if plot:
+            ax = model.fit_model(model_list, coords=coords, mode=mode,
+                        plot=plot, densify=10, weight=weight)
+            return model, ax
+        else:
+            model.fit_model(model_list, coords=coords,mode=mode, 
+                    plot=plot, densify=10, weight=weight)
+            return model
 
     def mean(self, lbda_min=None, lbda_max=None, unit=u.angstrom):
         '''

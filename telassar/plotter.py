@@ -199,6 +199,7 @@ def get_contour_levels(data, sigma):
     #                  0.27161332, 0.54322664, 1.08645327])
     #lvls1 = dmax * scale
 
+    print("lvls1: ", lvls1)
     return lvls1, lvls2
 
 def configure_axes(ax, obj):

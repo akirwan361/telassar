@@ -142,7 +142,7 @@ class SpatLine(MathHandler, DataND):
         flux = np.trapz(y=data, x=dist)
         return flux
 
-    def fit_model(self, model_list, coords=None, plot=True, weight=False, mode='components'):
+    def fit_model(self, model_list, coords=None, plot=True, weight=None, mode='components'):
         '''
         A convenient wrapper around the `Modeller` class to prepare
         and fit a model.
