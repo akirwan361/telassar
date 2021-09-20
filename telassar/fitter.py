@@ -25,13 +25,14 @@ class Modeller:
 
         self.data = object.data
         self.mask = object.mask
-
         if object._is_spectral:
             wcs = object.velwave
 
         if object._is_spatial:
             wcs = object.position
 
+        self._is_spatial = object._is_spatial
+        self._is_spectral = object._is_spectral
         self.wcs = wcs
         self.unit = wcs.unit
 
@@ -179,12 +180,17 @@ class Modeller:
         # I haven't figured out a good way to make general initial 
         # parameters for both WFM and NFM, so this is an ugly 
         # workaround
-        if np.diff(x)[0] < 0.2:
-            cstep = 0.05
-            siginit = 0.1
-        else:
-            cstep = 1.
-            siginit = 1
+        if self._is_spatial:
+            if np.diff(x)[0] < 0.2:
+                siginit = 0.1
+            else:
+                siginit = 1.
+        elif self._is_spectral:
+            if self.wcs.unit == 'km/s':
+                siginit = 10.
+            else:
+                siginit = 2.
+
 
         # estimate the noise
         noise = get_noise1D(y, full=False)
@@ -210,17 +216,12 @@ class Modeller:
             if func['type'] in ['GaussianModel', 'LorentzianModel',
                                 'VoigtModel']:
                 model.set_param_hint('amplitude', value=1.1 * peak, min=1e-6)
-#                        max=1.1 * peak)
                 model.set_param_hint('center', value=ctr, min=0.975*ctr,
                                      max=1.025*ctr)
-#                        ctr - cstep,
-#                                      max=ctr + cstep)
                 model.set_param_hint('sigma', value=siginit, min=1e-6,
                         max=10 * np.diff(x)[0])
-#                        max=10)
                 default_params = {
                         prefix+'center': ctr,
-#                        prefix+'height': peak
                         prefix+'amplitude': peak,
                         prefix+'sigma': siginit,
                     }

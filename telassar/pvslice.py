@@ -205,11 +205,10 @@ class PVSlice(MathHandler, DataND):
 #                len(arc) !=2):
         if (isinstance(wave, (int)) or len(wave) != 2):
             raise ValueError("Can't extract profile with only one point!")
-        if isinstance(arc, (int, np.int64)) or isinstance(arc, float):
+        if isinstance(arc, (int, np.int64, float)):
             a1, a2 = arc, arc
-        elif isinstance(arc, list):
+        elif isinstance(arc, (list, np.ndarray)):
             a1, a2 = arc[0], arc[-1]
-
 
         # get the spectral and spatial limits in pixel or native unts
         if spec_unit:
