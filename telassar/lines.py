@@ -18,7 +18,7 @@ lines = {
         'NII6583':   [6583.46,  'Angstrom', r'$[\mathrm{NII}]\lambda 6583\AA$'],
         'HeI6678':   [6678.71, 'Angstrom', r'$\mathrm{HeI}\lambda 6679\AA$'],
         'SII6716':   [6716.44,  'Angstrom', r'$[\mathrm{SII}]\lambda 6716\AA$'],
-        'SII6731':   [6730.81, 'Angstrom', r'$[\mathrm{SII}]\lambda 6730\AA$'],
+        'SII6731':   [6730.81, 'Angstrom', r'$[\mathrm{SII}]\lambda 6731\AA$'],
         'HeI7065':   [7065.3, 'Angstrom', r'$\mathrm{HeI}\lambda 7065\AA$'],
         'ArIII7136': [7135.78, 'Angstrom', r'$[\mathrm{ArIII}]\lambda 7136\AA$'],
         'FeII7155':  [7155.16, 'Angstrom', r'$[\mathrm{FeII}]\lambda 7155\AA$'],
