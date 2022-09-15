@@ -146,15 +146,15 @@ class Position:
             unit = unit or self.unit
             start = self.get_start(unit=unit)
             step = self.get_step(unit=unit)
-            type = self.wcs.wcs.ctype[0].capitalize()
+            ctype = self.wcs.wcs.ctype[0].capitalize()
 
             if self.shape is None:
                 self._logger.info('Spatial %s: min: %0.2f" step: %0.3f"' %
-                                 (type, start, step))
+                                 (ctype, start, step))
             else:
                 end = self.get_stop(unit=unit)
                 self._logger.info('Spatial %s: min: %0.1f" max: %0.1f" step: %0.3f"' %
-                                 (type, start, end, step))
+                                 (ctype, start, end, step))
         except Exception as e:
             print(e)
             self._logger.info("something happened I can't fix yet")
