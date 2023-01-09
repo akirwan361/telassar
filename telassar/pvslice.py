@@ -37,20 +37,32 @@ class PVSlice(MathHandler, DataND):
         pvslice[i, :] = spectral profile
         pvslice[:, :] = sub-pvslice
         """
-        print("Item type: ", type(item))
-        print("Self type: ", type(self))
-        print(super(PVSlice, self))
+#        print("Item type: ", type(item))
+#        print("Self type: ", type(self))
+#        print(super(PVSlice, self))
         obj = super(PVSlice, self).__getitem__(item)
-
+#        print(obj.shape)
         if isinstance(obj, DataND):
+#            ndim = obj.ndim
+#            print('object ndim = ', ndim)
             if obj.ndim == 2:
-                return obj
+#                print('Check the shape')
+                if obj.shape[1] == 1:
+#                    print('Return spatline')
+                    cls = SpatLine
+                elif obj.shape[0] == 1:
+#                    print('Return specline')
+                    cls = SpecLine
+                else:
+#                    print('Return object')
+                    return obj
             elif obj.ndim == 1 and obj._is_spatial:
                 cls = SpatLine
             elif obj.ndim == 1 and obj._is_spectral:
                 cls = SpecLine
             return cls.new_object(obj)
         else:
+#            print('What happened')
             return obj
 
     def spectral_window(self, vmin, vmax=None, unit=None):

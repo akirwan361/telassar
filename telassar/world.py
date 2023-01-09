@@ -142,22 +142,23 @@ class Position:
         return repr(self.wcs)
 
     def info(self, unit=None):
-        try:
-            unit = unit or self.unit
-            start = self.get_start(unit=unit)
-            step = self.get_step(unit=unit)
-            type = self.wcs.wcs.ctype[0].capitalize()
 
-            if self.shape is None:
-                self._logger.info('Spatial %s: min: %0.2f" step: %0.3f"' %
-                                 (type, start, step))
-            else:
-                end = self.get_stop(unit=unit)
-                self._logger.info('Spatial %s: min: %0.1f" max: %0.1f" step: %0.3f"' %
-                                 (type, start, end, step))
-        except Exception as e:
-            print(e)
-            self._logger.info("something happened I can't fix yet")
+#        try:
+        unit = unit or self.unit
+        start = self.get_start(unit=unit)
+        step = self.get_step(unit=unit)
+        ctype = self.wcs.wcs.ctype[0].capitalize()
+
+        if self.shape is None:
+            self._logger.info('Spatial %s: min: %0.2f" step: %0.3f"' %
+                             (ctype, start, step))
+        else:
+            end = self.get_stop(unit=unit)
+            self._logger.info('Spatial %s: min: %0.1f" max: %0.1f" step: %0.3f"' %
+                             (ctype, start, end, step))
+#        except Exception as e:
+#            print(e)
+#            self._logger.info("something happened I can't fix yet")
 
     def __getitem__(self, item):
 
@@ -251,9 +252,12 @@ class Position:
         if self.wcs.wcs.has_cd():
             step = self.wcs.wcs.cd[0]
         else:
-            cdelt = self.wcs.wcs.get_cdelt()[0]
-            pc = self.wcs.wcs.get_pc()[0][0]
-            step = cdelt #* pc
+            try:
+                cdelt = self.wcs.wcs.get_cdelt()[0]
+                pc = self.wcs.wcs.get_pc()[0][0]
+                step = cdelt #* pc
+            except Exception:
+                step = 0.
 
         if unit is not None:
             step = (step * self.unit).to(unit).value
@@ -361,7 +365,7 @@ class VelWave:
         unit = unit or self.unit
         start = self.get_start(unit=unit)
         step = self.get_step(unit=unit)
-        type = self.wcs.wcs.ctype[0].capitalize()
+        ctype = self.wcs.wcs.ctype[0].capitalize()
 
         if self.shape is None:
             unit = str(unit).replace(' ', '')
@@ -370,7 +374,7 @@ class VelWave:
         else:
             end = self.get_stop(unit=unit)
             unit = str(unit).replace(' ', '')
-            self._logger.info('Spectral extent: min %0.2f %s max: %0.2f %s step: %0.3f %s' %
+            self._logger.info('Spectral extent: min: %0.2f %s max: %0.2f %s step: %0.3f %s' %
                              (start, unit, end, unit, step, unit))
 
     def __getitem__(self, item):
@@ -471,10 +475,12 @@ class VelWave:
         if self.wcs.wcs.has_cd():
             step = self.wcs.wcs.cd[0]
         else:
-            cdelt = self.wcs.wcs.get_cdelt()[0]
-            pc = self.wcs.wcs.get_pc()[0][0]
-            step = cdelt * pc
-
+            try:
+                cdelt = self.wcs.wcs.get_cdelt()[0]
+                pc = self.wcs.wcs.get_pc()[0][0]
+                step = cdelt * pc
+            except Exception:
+                step = 0.
         if unit is not None:
             step = (step * self.unit).to(unit).value
         return step
