@@ -75,14 +75,16 @@ def get_plot_extent(wcs_obj, spec_obj):
     '''
     Assuming a `PVSlice.world` object is passed, get the extents for plotting
     '''
+    
+#    if spec_obj is not Non
     xmin = spec_obj.get_start()
     xmax = spec_obj.get_stop()
     ymin = wcs_obj.get_start()
     ymax = wcs_obj.get_stop()
     
-    if spec_obj.wcs.wcs.ctype[0] == 'VELO':
-        xmin /= 1000
-        xmax /= 1000
+#    if spec_obj.wcs.wcs.ctype[0] == 'VELO':
+#        xmin /= 1000
+#        xmax /= 1000
     return xmin, xmax, ymin, ymax
 
 def get_background_rms(data, sigma=3, N=10, mask = None):
@@ -197,6 +199,7 @@ def get_contour_levels(data, sigma):
     #                  0.27161332, 0.54322664, 1.08645327])
     #lvls1 = dmax * scale
 
+    print("lvls1: ", lvls1)
     return lvls1, lvls2
 
 def configure_axes(ax, obj):

@@ -22,5 +22,9 @@ examples/.ipynb_checkpoints
 examples/.ipynb_checkpoints/
 workspace.ipynb
 
+# ignore some other testing files
+ha_red_stats.dat
+no_skyline.png
+test.sav
 .tox
 .cache

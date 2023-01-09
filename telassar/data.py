@@ -42,7 +42,11 @@ class DataND:
             self._data = hdul[self.ext].data
 
             if 'BUNIT' in self.header:
-                self.flux_unit = u.Unit(self.header['BUNIT'])
+                try:
+                    self.flux_unit = u.Unit(self.header['BUNIT'])
+                except Exception:
+                    # it might be COUNTS
+                    self.flux_unit = u.adu
             else:
                 self.flux_unit = u.dimensionless_unscaled
 
@@ -120,7 +124,8 @@ class DataND:
             self._mask = np.asarray(val, dtype=bool)
 
     @classmethod
-    def new_object(cls, object, data=None, unit=None, wcs=None, spec=None):
+    def new_object(cls, object, data=None, flux_unit=None, unit=None, wcs=None, 
+                   spec=None):
         '''
         Copy attributes from one object into a new instance
         Needs testing...
@@ -141,7 +146,7 @@ class DataND:
                 unit = None
 
         kwargs = dict(filename=object.filename, data=data, unit=unit,
-                      ext=object.ext, header=object.header.copy())
+                      ext=object.ext, header=object.header)
 
         try:
             kwargs['wcs'] = object.position

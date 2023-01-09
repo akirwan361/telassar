@@ -186,25 +186,65 @@ def parse_badlines(fname):
             yield emis, float(l1), float(l2)
 
 
-def get_noise1D(flux):
+def get_noise1D(flux, full=False):
     '''
     A simple function to return the noise of an array following the
-    sigma-estimation given in Czesla et al., 2018 (A&A, 609, A39):
+    sigma-estimation given in Stoehr et al., 2008 (ASPC, 394, 505S):
 
-        sigma = (1.482602 / sqrt(6)) * med_i(| 2*flux_i - \
-                         flux_{i-2} - flux_{i+2}|)
+        sigma = 1.482602 / sqrt(6) *
+                median(abs(2*flux(i) - flux(i-2) - flux(i+2)))
+    
+    (see http://articles.adsabs.harvard.edu/pdf/2008ASPC..394..505S)
 
-    (See: http://cdsads.u-strasbg.fr/abs/2018A%26A...609A..39C)
+    This is adapted to allow the noise at each pixel to be returned,
+    or to return the mean sigma value
     '''
 
-    # ignore masked pixels
+    # make sure it's a masked array
+    flux = np.ma.masked_array(flux)
+    # ignore any negative values
+    flux[flux <= 0.] = np.ma.masked
+#    flux = np.ma.filled(flux, 0)
     flux = flux.compressed()
-    n = len(flux)
 
-    if n > 4:
-        noise = (1.482602/np.sqrt(6)) * np.median(abs(2 * flux[2:n-2] \
-                - flux[0:n-4] - flux[4:n]))
+
+    noise = []
+    for n in range(len(flux)):
+        if n > 4:
+            sigma = (1.482602/np.sqrt(6)) * np.median(abs(2 * flux[2:n-2] \
+                    - flux[0:n-4] - flux[4:n]))
+        else:
+            sigma = 0.
+        noise.append(sigma)
+
+    if not full:
+        noise = np.mean(noise)
     else:
-        noise = 0.
+        noise = np.asarray(noise)
 
     return noise
+
+def vac2air(lbda):
+    '''
+    In case you need to convert vacuum wavelength to air. Note that this
+    requires a `lbda` value in units of Angstrom. This equation follows 
+    the IAU standard, from Morton 2000, ApJ Suppl., 130, 403
+
+    https://ui.adsabs.harvard.edu/abs/2000ApJS..130..403M/abstract
+    '''
+    s = 10e4 / lbda
+    n = 1. + 8.34253e-5 + 2406147e-2 / (130 - s**2) \
+            + 1.5998e-4 / (39.8 - s**2)
+
+    return lbda / n
+
+
+def air2vac(lbda):
+    '''
+    Convert a wavelength value (in units of Angstrom) from air to vacuum.
+    '''
+    s = 10e4 / lbda
+    n = 1 + 0.8336624212083e-5 + 2.408926869968e-2 / (130.1065924522 - s**2) \
+            + 1.599740894897e-4 / (38.92568793293 - s**2)
+
+    return lbda * n

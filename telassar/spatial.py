@@ -7,13 +7,15 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 
 from .data import DataND
+#from .pvslice import PVSlice
 from .world import Position, VelWave
 from .plotter import *
 from .tools import is_notebook
 from .lines import lines
 from .fitter import Modeller
+from .domath import MathHandler
 
-class SpatLine(DataND):
+class SpatLine(MathHandler, DataND):
 
     _is_spatial = True
 
@@ -42,7 +44,7 @@ class SpatLine(DataND):
             if event.inaxes is not None:
                 xc, yc = event.xdata, event.ydata
                 try:
-                    i = self.position.offset2pix(xc, nearest = True)
+                    i = self.position.offset2pix(xc, nearest=True)
                     x = self.position.pix2offset(i)
                     event.canvas.toolbar.set_message(
                         'xc=%g yc=%g i=%d dist=%g data=%g' %
@@ -56,7 +58,7 @@ class SpatLine(DataND):
             xc, yc = event.xdata, event.ydata
             
             try:
-                i = self.position.offset2pix(xc, nearest = True)
+                i = self.position.offset2pix(xc, nearest=True)
                 x = self.position.pix2offset(i)
                 data = self._data[i]
                 print(f'arc={x}, flux={data}')
@@ -71,7 +73,7 @@ class SpatLine(DataND):
             if event.key == 'a':
                 self._logger.info('Enabling point-selection mode...')
                 cid = fig.canvas.mpl_connect('button_press_event', on_click)
-            if event.key == 'q': 
+            if event.key == 'q':
                 self._logger.info("Point-selection mode disabled.")
                 cid = fig.canvas.mpl_connect('button_press_event', on_click)
                 fig.canvas.mpl_disconnect(cid)
@@ -140,15 +142,74 @@ class SpatLine(DataND):
         flux = np.trapz(y=data, x=dist)
         return flux
 
-    def fit_model(self, model_list, coords=None, plot=True):
+    def fit_model(self, model_list, coords=None, plot=True, weight=None, mode='components'):
         '''
-        A convenient wrapper around the `Modeller` class to prepare 
-        and fit a model. 
-        '''
-        print("We're running a test to send to `fitter.py`")
+        A convenient wrapper around the `Modeller` class to prepare
+        and fit a model.
 
+        Parameters:
+        -----------
+
+        model_list : list
+            a list of single-letter keys to pass to the modeller, corresponding
+            to the type of model the user wishes to have fitted
+        coords : list, optional
+            coordinates to include as initial guesses for the fitter; these can
+            be manually specified, or chosen interactively from the plots
+        plot : bool
+            if you want it plotted
+        '''
+        if mode.lower() not in ['components', 'residuals']:
+            mode = 'components'
         model = Modeller(self)
-        result = model.fit_model(model_list, coords=coords, mode='components',
-                      plot=plot, densify=10, emline=None, fig_kws=None, ax_kws=None)
+        if plot:
+            ax = model.fit_model(model_list, coords=coords, mode=mode,
+                        plot=plot, densify=10, weight=weight)
+            return model, ax
+        else:
+            model.fit_model(model_list, coords=coords,mode=mode, 
+                    plot=plot, densify=10, weight=weight)
+            return model
 
-        self._fit_result = result
+    def mean(self, off_min=None, off_max=None, unit=u.arcsec):
+        '''
+        Simply return the mean flux over some wavelength range
+
+        Parameters
+        ----------
+        off_min : float
+            lower bound
+        off_max : float 
+            upper bound
+        unit : `astropy.units.Unit`
+            if None, assume pixels rather than coords 
+
+        Returns 
+        -------
+        out : float 
+            The mean flux
+        '''
+
+        if unit is not None:
+            l1, l2 = self.position.offset2pix([off_min, off_max], nearest=True)
+        else:
+            l1, l2 = off_min+0.5, off_max+0.5
+
+        sa = slice(l1, l2+1)
+
+        flux = np.ma.average(self.data[sa])
+        return flux
+
+
+    def sum(self, off_min=None, off_max=None, unit=u.arcsec):
+
+        if unit is not None:
+            l1, l2 = self.velwave.wav2pix([off_min, off_max], nearest=True)
+        else:
+            l1, l2 = off_min+0.5, off_max + 0.5
+
+        sa = slice(l1, l2+1)
+
+        flux = np.ma.sum(self.data[sa])
+        return flux
+

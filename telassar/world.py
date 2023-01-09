@@ -33,12 +33,6 @@ def wcs_from_header(header):
                 cunit = u.Unit(hdr.pop('CUNIT%d'%i))
     except KeyError:
         pass
-    # if 'CUNIT3' in hdr:
-    #     cunit = u.Unit(hdr.pop('CUNIT3'))
-    # elif 'CUNIT2' in hdr:
-    #     cunit = u.Unit(hdr.pop('CUNIT2'))
-    # else:
-    #     cunit = u.Unit('angstrom')
 
     try:
         n = hdr['NAXIS']
@@ -54,15 +48,9 @@ def wcs_from_header(header):
     old_shape = mywcs.pixel_shape
 
     if mywcs.wcs.has_cd():
-        #print('Has CD')
-        #try:
         cdelt = get_cdelt_from_cd(mywcs.wcs.cd)
-        #except IndexError:
-        #    cdelt = mywcs.wcs.cd
-#        print(cdelt)
 
     elif mywcs.wcs.has_pc():
-        #print('Has PC')
         try:
             cd = np.dot(np.diag(mywcs.wcs.get_cdelt()), mywcs.wcs.get_pc())
             cdelt = get_cdelt_from_cd(cd)
@@ -73,11 +61,14 @@ def wcs_from_header(header):
         del mywcs.wcs.cd
 
     if n==3:
+        # if it's a cube, the wavelength is the third axis
+        crpix1 = hdr['CRPIX3']
         nz, ny = old_shape[::-1][:2]
         new_wcs = mywcs.sub([WCSSUB_SPECTRAL, 0])
         new_wcs.pixel_shape = (nz, ny)
 
     if n==2:
+        crpix1 = hdr['CRPIX1']
         new_wcs = mywcs.copy()
 
     crpix2 = hdr['CRPIX2']
@@ -90,7 +81,7 @@ def wcs_from_header(header):
     else:
         ctype1 = 'AWAV'
 
-    new_wcs.wcs.crpix = [1., crpix2]
+    new_wcs.wcs.crpix = [crpix1, crpix2]
     new_wcs.wcs.cdelt = cdelt
     new_wcs.wcs.ctype = [ctype1, ctype2]
 
@@ -98,8 +89,6 @@ def wcs_from_header(header):
     # as the cd**2
     new_wcs.wcs.pc = np.diag([1., 1.])
 
-
-    #new_wcs.wcs.cunit[1] = u.Unit('arcsec')
     return new_wcs
 
 class Position:
@@ -153,22 +142,23 @@ class Position:
         return repr(self.wcs)
 
     def info(self, unit=None):
-        try:
-            unit = unit or self.unit
-            start = self.get_start(unit=unit)
-            step = self.get_step(unit=unit)
-            type = self.wcs.wcs.ctype[0].capitalize()
 
-            if self.shape is None:
-                self._logger.info('Spatial %s: min: %0.2f" step: %0.3f"' %
-                                 (type, start, step))
-            else:
-                end = self.get_stop(unit=unit)
-                self._logger.info('Spatial %s: min: %0.1f" max: %0.1f" step: %0.3f"' %
-                                 (type, start, end, step))
-        except Exception as e:
-            print(e)
-            self._logger.info("something happened I can't fix yet")
+#        try:
+        unit = unit or self.unit
+        start = self.get_start(unit=unit)
+        step = self.get_step(unit=unit)
+        ctype = self.wcs.wcs.ctype[0].capitalize()
+
+        if self.shape is None:
+            self._logger.info('Spatial %s: min: %0.2f" step: %0.3f"' %
+                             (ctype, start, step))
+        else:
+            end = self.get_stop(unit=unit)
+            self._logger.info('Spatial %s: min: %0.1f" max: %0.1f" step: %0.3f"' %
+                             (ctype, start, end, step))
+#        except Exception as e:
+#            print(e)
+#            self._logger.info("something happened I can't fix yet")
 
     def __getitem__(self, item):
 
@@ -262,9 +252,12 @@ class Position:
         if self.wcs.wcs.has_cd():
             step = self.wcs.wcs.cd[0]
         else:
-            cdelt = self.wcs.wcs.get_cdelt()[0]
-            pc = self.wcs.wcs.get_pc()[0][0]
-            step = cdelt #* pc
+            try:
+                cdelt = self.wcs.wcs.get_cdelt()[0]
+                pc = self.wcs.wcs.get_pc()[0][0]
+                step = cdelt #* pc
+            except Exception:
+                step = 0.
 
         if unit is not None:
             step = (step * self.unit).to(unit).value
@@ -372,7 +365,7 @@ class VelWave:
         unit = unit or self.unit
         start = self.get_start(unit=unit)
         step = self.get_step(unit=unit)
-        type = self.wcs.wcs.ctype[0].capitalize()
+        ctype = self.wcs.wcs.ctype[0].capitalize()
 
         if self.shape is None:
             unit = str(unit).replace(' ', '')
@@ -381,7 +374,7 @@ class VelWave:
         else:
             end = self.get_stop(unit=unit)
             unit = str(unit).replace(' ', '')
-            self._logger.info('Spectral extent: min %0.2f %s max: %0.2f %s step: %0.3f %s' %
+            self._logger.info('Spectral extent: min: %0.2f %s max: %0.2f %s step: %0.3f %s' %
                              (start, unit, end, unit, step, unit))
 
     def __getitem__(self, item):
@@ -482,10 +475,12 @@ class VelWave:
         if self.wcs.wcs.has_cd():
             step = self.wcs.wcs.cd[0]
         else:
-            cdelt = self.wcs.wcs.get_cdelt()[0]
-            pc = self.wcs.wcs.get_pc()[0][0]
-            step = cdelt * pc
-
+            try:
+                cdelt = self.wcs.wcs.get_cdelt()[0]
+                pc = self.wcs.wcs.get_pc()[0][0]
+                step = cdelt * pc
+            except Exception:
+                step = 0.
         if unit is not None:
             step = (step * self.unit).to(unit).value
         return step
