@@ -31,6 +31,7 @@ lines = {
         'CaII7324':  [7323.89, 'Angstrom', r'$[\mathrm{CaII}]\lambda 7324\AA$'],
         'NiII7378':  [7377.83, 'Angstrom', r'$[\mathrm{NiII}]\lambda 7378\AA$'],
         'FeII7388':  [7388.2, 'Angstrom', r'$[\mathrm{FeII}]\lambda 7388\AA$'],
+        'NiII7411':  [7411.61, 'Angstrom', r'$[\mathrm{NiII}]\lambda 7411\AA$'],
         'FeII7453':  [7452.54, 'Angstrom', r'$[\mathrm{FeII}]\lambda 7453\AA$'],
         'FeII7638':  [7637.539, 'Angstrom', r'$[\mathrm{FeII}]\lambda 7638\AA$'],
         'ArIII7751': [7751.1, 'Angstrom', r'$[\mathrm{ArIII}]\lambda 7751\AA$'],
